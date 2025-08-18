@@ -114,15 +114,15 @@ namespace VirtualDesktopDisplayer
         {
             try
             {
-                // Try using the API first (same logic as tracker)
-                return GetCurrentDesktopNameUsingAPI();
+                // Try using the subprocess method first (same logic as tracker)
+                return DesktopNameProvider.GetCurrentDesktopNameUsingSubprocess();
             }
             catch
             {
                 try
                 {
-                    // Fallback to subprocess method
-                    return DesktopNameProvider.GetCurrentDesktopNameUsingSubprocess();
+                    // Fallback to API method
+                    return GetCurrentDesktopNameUsingAPI();
                 }
                 catch (Exception ex)
                 {
