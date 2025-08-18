@@ -2,6 +2,7 @@ using System;
 using System.Diagnostics;
 using System.Drawing;
 using System.IO;
+using System.Runtime.InteropServices;
 using System.Windows.Forms;
 using VirtualDesktopHelper;
 
@@ -9,6 +10,25 @@ namespace VirtualDesktopDisplayer
 {
     public partial class Form1 : Form
     {
+        // Windows API imports for showing window on all desktops
+        [DllImport("user32.dll", SetLastError = true)]
+        private static extern IntPtr SetWindowLongPtr(IntPtr hWnd, int nIndex, IntPtr dwNewLong);
+
+        [DllImport("user32.dll", SetLastError = true)]
+        private static extern IntPtr GetWindowLongPtr(IntPtr hWnd, int nIndex);
+
+        [DllImport("user32.dll")]
+        private static extern bool SetWindowPos(IntPtr hWnd, IntPtr hWndInsertAfter, int X, int Y, int cx, int cy, uint uFlags);
+
+        // Constants for Windows API
+        private const int GWL_EXSTYLE = -20;
+        private const long WS_EX_TOOLWINDOW = 0x00000080L;
+        private const long WS_EX_APPWINDOW = 0x00040000L;
+        private static readonly IntPtr HWND_TOPMOST = new IntPtr(-1);
+        private const uint SWP_NOMOVE = 0x0002;
+        private const uint SWP_NOSIZE = 0x0001;
+        private const uint SWP_SHOWWINDOW = 0x0040;
+
         private System.Windows.Forms.Timer updateTimer;
         private Label desktopLabel;
         private const int TASKBAR_HEIGHT = 40; // Approximate taskbar height
@@ -55,6 +75,28 @@ namespace VirtualDesktopDisplayer
             desktopLabel.MouseClick += Form1_MouseClick;
             
             UpdateDesktopName();
+        }
+
+        private void ConfigureWindowForAllDesktops()
+        {
+            try
+            {
+                // Make the window show on all virtual desktops by setting it as a tool window
+                IntPtr handle = this.Handle;
+                IntPtr currentStyle = GetWindowLongPtr(handle, GWL_EXSTYLE);
+                
+                // Set the window as a tool window and ensure it appears on all desktops
+                IntPtr newStyle = new IntPtr(currentStyle.ToInt64() | WS_EX_TOOLWINDOW);
+                SetWindowLongPtr(handle, GWL_EXSTYLE, newStyle);
+                
+                // Ensure it stays on top
+                SetWindowPos(handle, HWND_TOPMOST, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE | SWP_SHOWWINDOW);
+            }
+            catch (Exception ex)
+            {
+                // Log the error but don't crash the application
+                System.Diagnostics.Debug.WriteLine($"Failed to configure window for all desktops: {ex.Message}");
+            }
         }
 
         private void SetupTimer()
@@ -162,6 +204,9 @@ namespace VirtualDesktopDisplayer
             base.OnLoad(e);
             // Make sure the window stays positioned correctly
             PositionWindow();
+            
+            // Configure the window to show on all virtual desktops and stay on top
+            ConfigureWindowForAllDesktops();
         }
 
         protected override void OnFormClosing(FormClosingEventArgs e)
