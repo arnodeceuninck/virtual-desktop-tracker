@@ -1,9 +1,204 @@
 ﻿using System;
+using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
+using System.Linq;
+using System.Text.Json;
 
 namespace VirtualDesktopHelper
 {
+    public class DesktopUsageEntry
+    {
+        public string DesktopName { get; set; } = "";
+        public DateTime StartTime { get; set; }
+        public DateTime? EndTime { get; set; }
+        public TimeSpan Duration => EndTime?.Subtract(StartTime) ?? DateTime.Now.Subtract(StartTime);
+    }
+
+    public class DesktopUsageTracker
+    {
+        private static readonly string LogFilePath = Path.Combine(
+            Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments),
+            "VirtualDesktopUsage.json"
+        );
+        
+        private static List<DesktopUsageEntry> _usageLog = new List<DesktopUsageEntry>();
+        private static string _currentDesktop = "";
+        private static DateTime _currentDesktopStartTime = DateTime.Now;
+        private static readonly object _lockObject = new object();
+
+        static DesktopUsageTracker()
+        {
+            LoadUsageLog();
+        }
+
+        private static void LoadUsageLog()
+        {
+            try
+            {
+                if (File.Exists(LogFilePath))
+                {
+                    string json = File.ReadAllText(LogFilePath);
+                    _usageLog = JsonSerializer.Deserialize<List<DesktopUsageEntry>>(json) ?? new List<DesktopUsageEntry>();
+                    
+                    // If there's an open session (no EndTime), close it
+                    var lastEntry = _usageLog.Count > 0 ? _usageLog[_usageLog.Count - 1] : null;
+                    if (lastEntry != null && lastEntry.EndTime == null)
+                    {
+                        lastEntry.EndTime = DateTime.Now;
+                        SaveUsageLog();
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                // If we can't load, start fresh
+                _usageLog = new List<DesktopUsageEntry>();
+            }
+        }
+
+        private static void SaveUsageLog()
+        {
+            try
+            {
+                var options = new JsonSerializerOptions
+                {
+                    WriteIndented = true
+                };
+                string json = JsonSerializer.Serialize(_usageLog, options);
+                File.WriteAllText(LogFilePath, json);
+            }
+            catch (Exception ex)
+            {
+                // Silently fail - we don't want to break the UI
+            }
+        }
+
+        public static void TrackDesktopUsage(string desktopName)
+        {
+            lock (_lockObject)
+            {
+                DateTime now = DateTime.Now;
+
+                // If this is the same desktop, do nothing
+                if (_currentDesktop == desktopName)
+                    return;
+
+                // Close the previous desktop session
+                if (!string.IsNullOrEmpty(_currentDesktop))
+                {
+                    var lastEntry = _usageLog.Count > 0 ? _usageLog[_usageLog.Count - 1] : null;
+                    if (lastEntry != null && lastEntry.DesktopName == _currentDesktop && lastEntry.EndTime == null)
+                    {
+                        lastEntry.EndTime = now;
+                    }
+                }
+
+                // Start tracking the new desktop
+                _currentDesktop = desktopName;
+                _currentDesktopStartTime = now;
+
+                // Add new entry
+                var newEntry = new DesktopUsageEntry
+                {
+                    DesktopName = desktopName,
+                    StartTime = now,
+                    EndTime = null // Still active
+                };
+
+                _usageLog.Add(newEntry);
+                SaveUsageLog();
+            }
+        }
+
+        public static List<DesktopUsageEntry> GetUsageLog()
+        {
+            lock (_lockObject)
+            {
+                return new List<DesktopUsageEntry>(_usageLog);
+            }
+        }
+
+        public static string GetUsageLogPath()
+        {
+            return LogFilePath;
+        }
+
+        public static void GenerateUsageReport()
+        {
+            try
+            {
+                var reportPath = Path.Combine(
+                    Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments),
+                    "VirtualDesktopUsageReport.txt"
+                );
+
+                var report = new System.Text.StringBuilder();
+                report.AppendLine("Virtual Desktop Usage Report");
+                report.AppendLine("Generated: " + DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss"));
+                report.AppendLine(new string('=', 50));
+                report.AppendLine();
+
+                var groupedByDesktop = new Dictionary<string, TimeSpan>();
+                var groupedByDate = new Dictionary<string, List<DesktopUsageEntry>>();
+
+                foreach (var entry in _usageLog)
+                {
+                    // Group by desktop name for total time
+                    if (!groupedByDesktop.ContainsKey(entry.DesktopName))
+                        groupedByDesktop[entry.DesktopName] = TimeSpan.Zero;
+                    
+                    groupedByDesktop[entry.DesktopName] = groupedByDesktop[entry.DesktopName].Add(entry.Duration);
+
+                    // Group by date for daily breakdown
+                    string dateKey = entry.StartTime.ToString("yyyy-MM-dd");
+                    if (!groupedByDate.ContainsKey(dateKey))
+                        groupedByDate[dateKey] = new List<DesktopUsageEntry>();
+                    
+                    groupedByDate[dateKey].Add(entry);
+                }
+
+                // Total time per desktop
+                report.AppendLine("Total Time Per Desktop:");
+                report.AppendLine(new string('-', 30));
+                foreach (var kvp in groupedByDesktop.OrderByDescending(x => x.Value))
+                {
+                    report.AppendLine($"{kvp.Key}: {FormatTimeSpan(kvp.Value)}");
+                }
+                report.AppendLine();
+
+                // Daily breakdown
+                report.AppendLine("Daily Usage Breakdown:");
+                report.AppendLine(new string('-', 30));
+                foreach (var dateGroup in groupedByDate.OrderByDescending(x => x.Key))
+                {
+                    report.AppendLine($"\n{dateGroup.Key}:");
+                    foreach (var entry in dateGroup.Value.OrderBy(x => x.StartTime))
+                    {
+                        string endTimeStr = entry.EndTime?.ToString("HH:mm:ss") ?? "ongoing";
+                        report.AppendLine($"  {entry.StartTime:HH:mm:ss} - {endTimeStr} : {entry.DesktopName} ({FormatTimeSpan(entry.Duration)})");
+                    }
+                }
+
+                File.WriteAllText(reportPath, report.ToString());
+            }
+            catch (Exception ex)
+            {
+                // Silently fail
+            }
+        }
+
+        private static string FormatTimeSpan(TimeSpan ts)
+        {
+            if (ts.TotalHours >= 1)
+                return $"{ts.Hours}h {ts.Minutes}m {ts.Seconds}s";
+            else if (ts.TotalMinutes >= 1)
+                return $"{ts.Minutes}m {ts.Seconds}s";
+            else
+                return $"{ts.Seconds}s";
+        }
+    }
+
     public class DesktopNameProvider
     {
         public static string GetCurrentDesktopNameUsingSubprocess()

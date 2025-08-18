@@ -1,5 +1,7 @@
 using System;
+using System.Diagnostics;
 using System.Drawing;
+using System.IO;
 using System.Windows.Forms;
 using VirtualDesktopHelper;
 
@@ -70,6 +72,9 @@ namespace VirtualDesktopDisplayer
                 string desktopName = DesktopNameProvider.GetCurrentDesktopNameUsingSubprocess();
                 desktopLabel.Text = $"Desktop: {desktopName}";
                 
+                // Track desktop usage
+                DesktopUsageTracker.TrackDesktopUsage(desktopName);
+                
                 // Resize form to fit the label
                 this.Size = desktopLabel.PreferredSize;
                 PositionWindow();
@@ -116,8 +121,86 @@ namespace VirtualDesktopDisplayer
             if (e.Button == MouseButtons.Right)
             {
                 ContextMenuStrip contextMenu = new ContextMenuStrip();
+                
+                // Add menu items
+                contextMenu.Items.Add("View Usage Log", null, ViewUsageLog_Click);
+                contextMenu.Items.Add("Generate Report", null, GenerateReport_Click);
+                contextMenu.Items.Add("Open Log Folder", null, OpenLogFolder_Click);
+                contextMenu.Items.Add(new ToolStripSeparator());
                 contextMenu.Items.Add("Exit", null, (s, args) => Application.Exit());
+                
                 contextMenu.Show(this, e.Location);
+            }
+        }
+
+        private void ViewUsageLog_Click(object sender, EventArgs e)
+        {
+            try
+            {
+                string logPath = DesktopUsageTracker.GetUsageLogPath();
+                if (File.Exists(logPath))
+                {
+                    Process.Start(new ProcessStartInfo
+                    {
+                        FileName = "notepad.exe",
+                        Arguments = $"\"{logPath}\"",
+                        UseShellExecute = true
+                    });
+                }
+                else
+                {
+                    MessageBox.Show("No usage log found yet. The log will be created as you use different virtual desktops.", 
+                                    "Virtual Desktop Tracker", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                }
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show($"Error opening usage log: {ex.Message}", 
+                                "Virtual Desktop Tracker", MessageBoxButtons.OK, MessageBoxIcon.Error);
+            }
+        }
+
+        private void GenerateReport_Click(object sender, EventArgs e)
+        {
+            try
+            {
+                DesktopUsageTracker.GenerateUsageReport();
+                string reportPath = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments), 
+                                                "VirtualDesktopUsageReport.txt");
+                
+                if (File.Exists(reportPath))
+                {
+                    Process.Start(new ProcessStartInfo
+                    {
+                        FileName = "notepad.exe",
+                        Arguments = $"\"{reportPath}\"",
+                        UseShellExecute = true
+                    });
+                }
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show($"Error generating report: {ex.Message}", 
+                                "Virtual Desktop Tracker", MessageBoxButtons.OK, MessageBoxIcon.Error);
+            }
+        }
+
+        private void OpenLogFolder_Click(object sender, EventArgs e)
+        {
+            try
+            {
+                string documentsPath = Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments);
+                Process.Start(new ProcessStartInfo
+                {
+                    FileName = "explorer.exe",
+                    Arguments = $"\"{documentsPath}\"",
+                    UseShellExecute = true
+                });
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show($"Error opening folder: {ex.Message}", 
+                                "Virtual Desktop Tracker", MessageBoxButtons.OK, MessageBoxIcon.Error);
             }
         }
     }
