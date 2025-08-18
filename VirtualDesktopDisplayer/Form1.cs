@@ -38,10 +38,19 @@ namespace VirtualDesktopDisplayer
 
         public Form1()
         {
-            InitializeComponent();
-            InitializeDesktopDisplay();
-            SetupTimer();
-            PositionWindow();
+            try
+            {
+                InitializeComponent();
+                InitializeDesktopDisplay();
+                SetupTimer();
+                PositionWindow();
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show($"Error initializing form: {ex.Message}\n\nStack trace: {ex.StackTrace}", 
+                               "Virtual Desktop Displayer Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                throw;
+            }
         }
 
         private void InitializeDesktopDisplay()
@@ -50,8 +59,7 @@ namespace VirtualDesktopDisplayer
             this.FormBorderStyle = FormBorderStyle.None;
             this.ShowInTaskbar = false;
             this.TopMost = true;
-            this.BackColor = Color.Black;
-            this.TransparencyKey = Color.Black;
+            this.BackColor = Color.DarkBlue; // Use a solid color instead of transparent
             this.WindowState = FormWindowState.Normal;
             this.StartPosition = FormStartPosition.Manual;
 
@@ -60,7 +68,7 @@ namespace VirtualDesktopDisplayer
             {
                 AutoSize = true,
                 ForeColor = Color.White,
-                BackColor = Color.FromArgb(128, 0, 0, 0), // Semi-transparent black
+                BackColor = Color.DarkBlue, // Match form background
                 Font = new Font("Segoe UI", 9F, FontStyle.Bold),
                 TextAlign = ContentAlignment.MiddleCenter,
                 Padding = new Padding(8, 4, 8, 4)
@@ -81,12 +89,12 @@ namespace VirtualDesktopDisplayer
         {
             try
             {
-                // Make the window show on all virtual desktops by setting it as a tool window
+                // Make the window show on all virtual desktops but keep it visible in Alt+Tab
                 IntPtr handle = this.Handle;
                 IntPtr currentStyle = GetWindowLongPtr(handle, GWL_EXSTYLE);
                 
-                // Set the window as a tool window and ensure it appears on all desktops
-                IntPtr newStyle = new IntPtr(currentStyle.ToInt64() | WS_EX_TOOLWINDOW);
+                // Remove any tool window flags and ensure it's a normal app window
+                IntPtr newStyle = new IntPtr((currentStyle.ToInt64() & ~WS_EX_TOOLWINDOW) | WS_EX_APPWINDOW);
                 SetWindowLongPtr(handle, GWL_EXSTYLE, newStyle);
                 
                 // Ensure it stays on top
@@ -96,6 +104,8 @@ namespace VirtualDesktopDisplayer
             {
                 // Log the error but don't crash the application
                 System.Diagnostics.Debug.WriteLine($"Failed to configure window for all desktops: {ex.Message}");
+                MessageBox.Show($"Warning: Could not configure window properly: {ex.Message}", 
+                               "Virtual Desktop Displayer Warning", MessageBoxButtons.OK, MessageBoxIcon.Warning);
             }
         }
 

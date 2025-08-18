@@ -1,34 +1,89 @@
 ﻿using System;
 using System.Diagnostics;
 using System.IO;
+using System.Threading;
 using VirtualDesktopHelper;
 
 namespace VirtualDesktopTracker
 {
 	class Program
 	{
+		private static volatile bool _isRunning = true;
+		private static string _lastDesktopName = "";
+
 		static void Main(string[] args)
+		{
+			Console.WriteLine("Virtual Desktop Tracker Started");
+			Console.WriteLine("Press Ctrl+C to stop tracking...");
+			Console.WriteLine($"Log directory: {DesktopUsageTracker.GetLogDirectory()}");
+			Console.WriteLine($"Current log file: {Path.GetFileName(DesktopUsageTracker.GetUsageLogPath())}");
+			Console.WriteLine();
+
+			// Handle Ctrl+C gracefully
+			Console.CancelKeyPress += (sender, e) => {
+				e.Cancel = true;
+				_isRunning = false;
+				Console.WriteLine("\nShutting down tracker...");
+			};
+
+			// Start tracking
+			TrackDesktopChanges();
+
+			Console.WriteLine("Tracker stopped.");
+		}
+
+		static void TrackDesktopChanges()
+		{
+			while (_isRunning)
+			{
+				try
+				{
+					string currentDesktop = GetCurrentDesktopName();
+					
+					if (!string.IsNullOrEmpty(currentDesktop) && currentDesktop != _lastDesktopName)
+					{
+						if (!string.IsNullOrEmpty(_lastDesktopName))
+						{
+							Console.WriteLine($"[{DateTime.Now:HH:mm:ss}] Desktop changed: {_lastDesktopName} -> {currentDesktop}");
+						}
+						else
+						{
+							Console.WriteLine($"[{DateTime.Now:HH:mm:ss}] Initial desktop: {currentDesktop}");
+						}
+
+						// Track the desktop usage (this automatically logs to file)
+						DesktopUsageTracker.TrackDesktopUsage(currentDesktop);
+						_lastDesktopName = currentDesktop;
+					}
+				}
+				catch (Exception ex)
+				{
+					Console.WriteLine($"[{DateTime.Now:HH:mm:ss}] Error: {ex.Message}");
+				}
+
+				// Check every 2 seconds
+				Thread.Sleep(2000);
+			}
+		}
+
+		static string GetCurrentDesktopName()
 		{
 			try
 			{
-				string desktopName = GetCurrentDesktopNameUsingAPI();
-				Console.WriteLine($"Current active desktop (Direct API): {desktopName}");
+				// Try using the subprocess method first
+				return DesktopNameProvider.GetCurrentDesktopNameUsingSubprocess();
 			}
-			catch (Exception ex)
+			catch
 			{
-				Console.WriteLine($"Error getting desktop name: {ex.Message}");
-				Console.WriteLine("Make sure you're running on Windows 11 24H2 and have proper permissions.");
-			}
-
-			try
-			{
-				string desktopName = DesktopNameProvider.GetCurrentDesktopNameUsingSubprocess();
-				Console.WriteLine($"Current active desktop (Subprocess): {desktopName}");
-			}
-			catch (Exception ex)
-			{
-				Console.WriteLine($"Error getting desktop name: {ex.Message}");
-				Console.WriteLine("Make sure you're running on Windows 11 24H2 and have proper permissions.");
+				try
+				{
+					// Fallback to API method
+					return GetCurrentDesktopNameUsingAPI();
+				}
+				catch (Exception ex)
+				{
+					return $"Error: {ex.Message}";
+				}
 			}
 		}
 

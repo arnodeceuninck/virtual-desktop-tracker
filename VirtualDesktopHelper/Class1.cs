@@ -17,9 +17,14 @@ namespace VirtualDesktopHelper
 
     public class DesktopUsageTracker
     {
-        private static readonly string LogFilePath = Path.Combine(
+        private static readonly string LogDirectory = Path.Combine(
             Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments),
-            "VirtualDesktopUsage.json"
+            "VirtualDesktopLogs"
+        );
+        
+        private static readonly string LogFilePath = Path.Combine(
+            LogDirectory,
+            $"VirtualDesktopUsage_{DateTime.Now:yyyy-MM-dd_HH-mm-ss}.json"
         );
         
         private static List<DesktopUsageEntry> _usageLog = new List<DesktopUsageEntry>();
@@ -29,26 +34,32 @@ namespace VirtualDesktopHelper
 
         static DesktopUsageTracker()
         {
+            EnsureLogDirectoryExists();
             LoadUsageLog();
+        }
+
+        private static void EnsureLogDirectoryExists()
+        {
+            try
+            {
+                if (!Directory.Exists(LogDirectory))
+                {
+                    Directory.CreateDirectory(LogDirectory);
+                }
+            }
+            catch (Exception ex)
+            {
+                // If we can't create the directory, fall back to Documents folder
+            }
         }
 
         private static void LoadUsageLog()
         {
             try
             {
-                if (File.Exists(LogFilePath))
-                {
-                    string json = File.ReadAllText(LogFilePath);
-                    _usageLog = JsonSerializer.Deserialize<List<DesktopUsageEntry>>(json) ?? new List<DesktopUsageEntry>();
-                    
-                    // If there's an open session (no EndTime), close it
-                    var lastEntry = _usageLog.Count > 0 ? _usageLog[_usageLog.Count - 1] : null;
-                    if (lastEntry != null && lastEntry.EndTime == null)
-                    {
-                        lastEntry.EndTime = DateTime.Now;
-                        SaveUsageLog();
-                    }
-                }
+                // For new session, start with empty log
+                // We don't need to load existing data since each run creates a new file
+                _usageLog = new List<DesktopUsageEntry>();
             }
             catch (Exception ex)
             {
@@ -124,6 +135,47 @@ namespace VirtualDesktopHelper
             return LogFilePath;
         }
 
+        public static string GetLogDirectory()
+        {
+            return LogDirectory;
+        }
+
+        public static List<DesktopUsageEntry> GetAllUsageHistory()
+        {
+            var allEntries = new List<DesktopUsageEntry>();
+            
+            try
+            {
+                if (Directory.Exists(LogDirectory))
+                {
+                    var logFiles = Directory.GetFiles(LogDirectory, "VirtualDesktopUsage_*.json");
+                    
+                    foreach (var file in logFiles)
+                    {
+                        try
+                        {
+                            string json = File.ReadAllText(file);
+                            var entries = JsonSerializer.Deserialize<List<DesktopUsageEntry>>(json);
+                            if (entries != null)
+                            {
+                                allEntries.AddRange(entries);
+                            }
+                        }
+                        catch
+                        {
+                            // Skip corrupted files
+                        }
+                    }
+                }
+            }
+            catch
+            {
+                // Return empty list if we can't read files
+            }
+            
+            return allEntries.OrderBy(e => e.StartTime).ToList();
+        }
+
         public static void GenerateUsageReport()
         {
             try
@@ -139,10 +191,13 @@ namespace VirtualDesktopHelper
                 report.AppendLine(new string('=', 50));
                 report.AppendLine();
 
+                // Get all historical data from all log files
+                var allEntries = GetAllUsageHistory();
+
                 var groupedByDesktop = new Dictionary<string, TimeSpan>();
                 var groupedByDate = new Dictionary<string, List<DesktopUsageEntry>>();
 
-                foreach (var entry in _usageLog)
+                foreach (var entry in allEntries)
                 {
                     // Group by desktop name for total time
                     if (!groupedByDesktop.ContainsKey(entry.DesktopName))
