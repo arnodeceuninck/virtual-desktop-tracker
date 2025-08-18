@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Diagnostics;
 using System.IO;
+using VirtualDesktopHelper;
 
 namespace VirtualDesktopTracker
 {
@@ -21,7 +22,7 @@ namespace VirtualDesktopTracker
 
 			try
 			{
-				string desktopName = GetCurrentDesktopNameUsingSubprocess();
+				string desktopName = DesktopNameProvider.GetCurrentDesktopNameUsingSubprocess();
 				Console.WriteLine($"Current active desktop (Subprocess): {desktopName}");
 			}
 			catch (Exception ex)
@@ -44,65 +45,6 @@ namespace VirtualDesktopTracker
 			catch (Exception ex)
 			{
 				throw new Exception($"Failed to get desktop name directly from API: {ex.Message}", ex);
-			}
-		}
-
-		static string GetCurrentDesktopNameUsingSubprocess()
-		{
-			try
-			{
-				// Path to the original VirtualDesktop executable - one level up from our project
-				string virtualDesktopExePath = Path.Combine(
-					Directory.GetParent(Directory.GetCurrentDirectory())?.FullName ?? "",
-					"VirtualDesktop",
-					"VirtualDesktop11-24H2.exe"
-				);
-
-				if (!File.Exists(virtualDesktopExePath))
-				{
-					throw new FileNotFoundException($"VirtualDesktop executable not found at: {virtualDesktopExePath}");
-				}
-
-				// Run the VirtualDesktop.exe /LIST command
-				ProcessStartInfo startInfo = new ProcessStartInfo
-				{
-					FileName = virtualDesktopExePath,
-					Arguments = "/LIST",
-					UseShellExecute = false,
-					RedirectStandardOutput = true,
-					CreateNoWindow = true
-				};
-
-				using (Process process = Process.Start(startInfo))
-				{
-					if (process == null)
-					{
-						throw new InvalidOperationException("Failed to start VirtualDesktop process");
-					}
-
-					string output = process.StandardOutput.ReadToEnd();
-					process.WaitForExit();
-
-					// Parse the output to find the visible desktop
-					string[] lines = output.Split('\n', StringSplitOptions.RemoveEmptyEntries);
-
-					foreach (string line in lines)
-					{
-						string trimmedLine = line.Trim();
-						if (trimmedLine.EndsWith("(visible)"))
-						{
-							// Remove "(visible)" suffix and return the desktop name
-							return trimmedLine.Substring(0, trimmedLine.Length - "(visible)".Length).Trim();
-						}
-					}
-				}
-
-				// Fallback: if we couldn't parse the output, return a default message
-				return "Could not determine desktop name";
-			}
-			catch (Exception ex)
-			{
-				throw new Exception($"Failed to get desktop name via subprocess: {ex.Message}", ex);
 			}
 		}
 	}
