@@ -152,8 +152,8 @@ namespace VirtualDesktopDisplayer
                 
                 if (!string.IsNullOrEmpty(currentDesktop))
                 {
-                    desktopLabel.Text = $"Desktop: {currentDesktop}";
-                    this.Text = $"Virtual Desktop Displayer - {currentDesktop}"; // Update window title
+                    desktopLabel.Text = $"{currentDesktop}";
+                    this.Text = $"{currentDesktop}"; // Update window title
                     
                     // Only track if desktop has changed (like the tracker does)
                     if (currentDesktop != _lastDesktopName)
