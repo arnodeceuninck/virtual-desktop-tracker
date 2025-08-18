@@ -62,6 +62,7 @@ namespace VirtualDesktopDisplayer
             this.BackColor = Color.DarkBlue; // Use a solid color instead of transparent
             this.WindowState = FormWindowState.Normal;
             this.StartPosition = FormStartPosition.Manual;
+            this.Text = "Virtual Desktop Displayer"; // Set initial window title
 
             // Create and configure the label
             desktopLabel = new Label
@@ -89,11 +90,37 @@ namespace VirtualDesktopDisplayer
         {
             try
             {
-                // Make the window show on all virtual desktops but keep it visible in Alt+Tab
                 IntPtr handle = this.Handle;
-                IntPtr currentStyle = GetWindowLongPtr(handle, GWL_EXSTYLE);
                 
-                // Remove any tool window flags and ensure it's a normal app window
+                // Method 1: Try using subprocess to pin the window (safest approach)
+                try
+                {
+                    string virtualDesktopExe = Path.Combine(Application.StartupPath, "..", "..", "..", "VirtualDesktop", "VirtualDesktop11-24H2.exe");
+                    if (!File.Exists(virtualDesktopExe))
+                    {
+                        virtualDesktopExe = Path.Combine(Application.StartupPath, "..", "..", "..", "VirtualDesktop", "VirtualDesktop.exe");
+                    }
+                    
+                    if (File.Exists(virtualDesktopExe))
+                    {
+                        // Pin this window to all desktops using external executable
+                        Process.Start(new ProcessStartInfo
+                        {
+                            FileName = virtualDesktopExe,
+                            Arguments = $"/PinWindow:{handle}",
+                            WindowStyle = ProcessWindowStyle.Hidden,
+                            CreateNoWindow = true,
+                            UseShellExecute = false
+                        });
+                    }
+                }
+                catch
+                {
+                    // If subprocess fails, fall back to simpler approach
+                }
+                
+                // Method 2: Use standard Windows flags for topmost and visibility
+                IntPtr currentStyle = GetWindowLongPtr(handle, GWL_EXSTYLE);
                 IntPtr newStyle = new IntPtr((currentStyle.ToInt64() & ~WS_EX_TOOLWINDOW) | WS_EX_APPWINDOW);
                 SetWindowLongPtr(handle, GWL_EXSTYLE, newStyle);
                 
@@ -103,9 +130,7 @@ namespace VirtualDesktopDisplayer
             catch (Exception ex)
             {
                 // Log the error but don't crash the application
-                System.Diagnostics.Debug.WriteLine($"Failed to configure window for all desktops: {ex.Message}");
-                MessageBox.Show($"Warning: Could not configure window properly: {ex.Message}", 
-                               "Virtual Desktop Displayer Warning", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                System.Diagnostics.Debug.WriteLine($"Warning: Could not configure window for all desktops: {ex.Message}");
             }
         }
 
@@ -128,6 +153,7 @@ namespace VirtualDesktopDisplayer
                 if (!string.IsNullOrEmpty(currentDesktop))
                 {
                     desktopLabel.Text = $"Desktop: {currentDesktop}";
+                    this.Text = $"Virtual Desktop Displayer - {currentDesktop}"; // Update window title
                     
                     // Only track if desktop has changed (like the tracker does)
                     if (currentDesktop != _lastDesktopName)
@@ -150,6 +176,7 @@ namespace VirtualDesktopDisplayer
                 else
                 {
                     desktopLabel.Text = "Desktop: Unknown";
+                    this.Text = "Virtual Desktop Displayer - Unknown"; // Update window title for unknown state
                 }
                 
                 // Resize form to fit the label
