@@ -19,25 +19,35 @@ namespace DesktopUsageViewer
                 Console.WriteLine($"Current Desktop: {currentDesktop}");
                 Console.WriteLine();
 
-                // Show log file location
-                string logPath = DesktopUsageTracker.GetUsageLogPath();
-                Console.WriteLine($"Usage log file: {logPath}");
-                Console.WriteLine($"Log file exists: {File.Exists(logPath)}");
-                Console.WriteLine();
-
-                // Generate and show recent usage
-                var usageLog = DesktopUsageTracker.GetUsageLog();
-                Console.WriteLine($"Total usage entries: {usageLog.Count}");
-                Console.WriteLine();
-
-                if (usageLog.Count > 0)
+                // Show log directory and current file
+                string logDirectory = DesktopUsageTracker.GetLogDirectory();
+                string currentLogPath = DesktopUsageTracker.GetUsageLogPath();
+                Console.WriteLine($"Usage log directory: {logDirectory}");
+                Console.WriteLine($"Current log file: {Path.GetFileName(currentLogPath)}");
+                Console.WriteLine($"Log directory exists: {Directory.Exists(logDirectory)}");
+                
+                // Count log files
+                int logFileCount = 0;
+                if (Directory.Exists(logDirectory))
                 {
-                    Console.WriteLine("Recent usage (last 10 entries):");
-                    Console.WriteLine("--------------------------------");
+                    logFileCount = Directory.GetFiles(logDirectory, "VirtualDesktopUsage_*.json").Length;
+                }
+                Console.WriteLine($"Total log files: {logFileCount}");
+                Console.WriteLine();
+
+                // Get all historical usage data
+                var allUsageLog = DesktopUsageTracker.GetAllUsageHistory();
+                Console.WriteLine($"Total usage entries across all sessions: {allUsageLog.Count}");
+                Console.WriteLine();
+
+                if (allUsageLog.Count > 0)
+                {
+                    Console.WriteLine("Recent usage (last 10 entries across all sessions):");
+                    Console.WriteLine("---------------------------------------------------");
                     
-                    var recentEntries = usageLog.Count > 10 ? 
-                        usageLog.GetRange(usageLog.Count - 10, 10) : 
-                        usageLog;
+                    var recentEntries = allUsageLog.Count > 10 ? 
+                        allUsageLog.GetRange(allUsageLog.Count - 10, 10) : 
+                        allUsageLog;
 
                     foreach (var entry in recentEntries)
                     {
@@ -57,7 +67,7 @@ namespace DesktopUsageViewer
                 }
                 else
                 {
-                    Console.WriteLine("No usage data available yet. Start using the Virtual Desktop Displayer to begin tracking.");
+                    Console.WriteLine("No usage data available yet. Start the Virtual Desktop Tracker to begin tracking.");
                 }
             }
             catch (Exception ex)
