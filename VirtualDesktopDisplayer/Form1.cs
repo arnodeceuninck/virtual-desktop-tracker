@@ -13,6 +13,8 @@ namespace VirtualDesktopDisplayer
         private Label desktopLabel;
         private const int TASKBAR_HEIGHT = 40; // Approximate taskbar height
         private const int MARGIN = 10;
+        private string _lastDesktopName = "";
+        private bool _isFirstRun = true;
 
         public Form1()
         {
@@ -59,7 +61,7 @@ namespace VirtualDesktopDisplayer
         {
             updateTimer = new System.Windows.Forms.Timer
             {
-                Interval = 1000 // Update every second
+                Interval = 2000 // Update every 2 seconds (same as tracker)
             };
             updateTimer.Tick += (sender, e) => UpdateDesktopName();
             updateTimer.Start();
@@ -69,11 +71,34 @@ namespace VirtualDesktopDisplayer
         {
             try
             {
-                string desktopName = DesktopNameProvider.GetCurrentDesktopNameUsingSubprocess();
-                desktopLabel.Text = $"Desktop: {desktopName}";
+                string currentDesktop = GetCurrentDesktopName();
                 
-                // Track desktop usage
-                DesktopUsageTracker.TrackDesktopUsage(desktopName);
+                if (!string.IsNullOrEmpty(currentDesktop))
+                {
+                    desktopLabel.Text = $"Desktop: {currentDesktop}";
+                    
+                    // Only track if desktop has changed (like the tracker does)
+                    if (currentDesktop != _lastDesktopName)
+                    {
+                        if (_isFirstRun)
+                        {
+                            // Initial desktop detection
+                            DesktopUsageTracker.TrackDesktopUsage(currentDesktop);
+                            _isFirstRun = false;
+                        }
+                        else if (!string.IsNullOrEmpty(_lastDesktopName))
+                        {
+                            // Desktop changed
+                            DesktopUsageTracker.TrackDesktopUsage(currentDesktop);
+                        }
+                        
+                        _lastDesktopName = currentDesktop;
+                    }
+                }
+                else
+                {
+                    desktopLabel.Text = "Desktop: Unknown";
+                }
                 
                 // Resize form to fit the label
                 this.Size = desktopLabel.PreferredSize;
@@ -82,6 +107,43 @@ namespace VirtualDesktopDisplayer
             catch (Exception ex)
             {
                 desktopLabel.Text = $"Error: {ex.Message}";
+            }
+        }
+
+        private string GetCurrentDesktopName()
+        {
+            try
+            {
+                // Try using the API first (same logic as tracker)
+                return GetCurrentDesktopNameUsingAPI();
+            }
+            catch
+            {
+                try
+                {
+                    // Fallback to subprocess method
+                    return DesktopNameProvider.GetCurrentDesktopNameUsingSubprocess();
+                }
+                catch (Exception ex)
+                {
+                    return $"Error: {ex.Message}";
+                }
+            }
+        }
+
+        private string GetCurrentDesktopNameUsingAPI()
+        {
+            try
+            {
+                // Get the current desktop index using the VirtualDesktop API
+                int visibleDesktop = VirtualDesktop.Desktop.FromDesktop(VirtualDesktop.Desktop.Current);
+
+                // Get the name using the same method as the VirtualDesktop executable's LIST command
+                return VirtualDesktop.Desktop.DesktopNameFromIndex(visibleDesktop);
+            }
+            catch (Exception ex)
+            {
+                throw new Exception($"Failed to get desktop name directly from API: {ex.Message}", ex);
             }
         }
 
