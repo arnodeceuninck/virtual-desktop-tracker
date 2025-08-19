@@ -31,10 +31,12 @@ namespace VirtualDesktopDisplayer
 
         private System.Windows.Forms.Timer updateTimer;
         private Label desktopLabel;
+        private TextBox renameTextBox;
         private const int TASKBAR_HEIGHT = 40; // Approximate taskbar height
         private const int MARGIN = 10;
         private string _lastDesktopName = "";
         private bool _isFirstRun = true;
+        private bool _isRenameMode = false;
 
         public Form1()
         {
@@ -72,16 +74,34 @@ namespace VirtualDesktopDisplayer
                 BackColor = Color.DarkBlue, // Match form background
                 Font = new Font("Segoe UI", 9F, FontStyle.Bold),
                 TextAlign = ContentAlignment.MiddleCenter,
-                Padding = new Padding(8, 4, 8, 4)
+                Padding = new Padding(8, 4, 8, 4),
+                Visible = true
+            };
+
+            // Create and configure the text box for renaming (initially hidden)
+            renameTextBox = new TextBox
+            {
+                Font = new Font("Segoe UI", 9F, FontStyle.Bold),
+                BackColor = Color.LightBlue,
+                ForeColor = Color.Black,
+                BorderStyle = BorderStyle.FixedSingle,
+                Visible = false,
+                Width = 150,
+                Height = 20
             };
 
             this.Controls.Add(desktopLabel);
+            this.Controls.Add(renameTextBox);
             
             // Add event handlers
             this.DoubleClick += Form1_DoubleClick;
             this.MouseClick += Form1_MouseClick;
             desktopLabel.DoubleClick += Form1_DoubleClick;
             desktopLabel.MouseClick += Form1_MouseClick;
+            
+            // Text box event handlers
+            renameTextBox.KeyDown += RenameTextBox_KeyDown;
+            renameTextBox.LostFocus += RenameTextBox_LostFocus;
             
             UpdateDesktopName();
         }
@@ -148,6 +168,10 @@ namespace VirtualDesktopDisplayer
         {
             try
             {
+                // Don't update if we're in rename mode
+                if (_isRenameMode)
+                    return;
+
                 string currentDesktop = GetCurrentDesktopName();
                 
                 if (!string.IsNullOrEmpty(currentDesktop))
@@ -259,7 +283,7 @@ namespace VirtualDesktopDisplayer
             Application.Exit();
         }
 
-        // Handle right-click to show context menu
+        // Handle right-click to show context menu, left-click to show rename textbox
         private void Form1_MouseClick(object sender, MouseEventArgs e)
         {
             if (e.Button == MouseButtons.Right)
@@ -275,6 +299,81 @@ namespace VirtualDesktopDisplayer
                 
                 contextMenu.Show(this, e.Location);
             }
+            else if (e.Button == MouseButtons.Left && !_isRenameMode)
+            {
+                // Single left-click: show rename textbox
+                ShowRenameTextBox();
+            }
+        }
+
+        private void ShowRenameTextBox()
+        {
+            _isRenameMode = true;
+            
+            // Hide the label and show the textbox
+            desktopLabel.Visible = false;
+            renameTextBox.Visible = true;
+            renameTextBox.Text = desktopLabel.Text;
+            renameTextBox.SelectAll();
+            
+            // Position the textbox where the label was
+            renameTextBox.Location = desktopLabel.Location;
+            
+            // Resize form to fit the textbox
+            this.Size = new Size(renameTextBox.Width + 16, renameTextBox.Height + 8);
+            PositionWindow();
+            
+            // Focus the textbox
+            renameTextBox.Focus();
+        }
+
+        private void HideRenameTextBox()
+        {
+            _isRenameMode = false;
+            
+            // Hide the textbox and show the label
+            renameTextBox.Visible = false;
+            desktopLabel.Visible = true;
+            
+            // Resize form to fit the label
+            this.Size = desktopLabel.PreferredSize;
+            PositionWindow();
+        }
+
+        private void RenameTextBox_KeyDown(object sender, KeyEventArgs e)
+        {
+            if (e.KeyCode == Keys.Enter)
+            {
+                // Apply the rename
+                string newName = renameTextBox.Text.Trim();
+                if (!string.IsNullOrEmpty(newName))
+                {
+                    bool success = DesktopNameProvider.RenameCurrentDesktopUsingSubprocess(newName);
+                    if (success)
+                    {
+                        // Update the label with the new name
+                        desktopLabel.Text = newName;
+                        _lastDesktopName = newName;
+                    }
+                    else
+                    {
+                        MessageBox.Show("Failed to rename desktop. Please try again.", 
+                                      "Rename Error", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                    }
+                }
+                HideRenameTextBox();
+            }
+            else if (e.KeyCode == Keys.Escape)
+            {
+                // Cancel the rename
+                HideRenameTextBox();
+            }
+        }
+
+        private void RenameTextBox_LostFocus(object sender, EventArgs e)
+        {
+            // Cancel the rename when focus is lost
+            HideRenameTextBox();
         }
 
         private void ViewUsageLog_Click(object sender, EventArgs e)

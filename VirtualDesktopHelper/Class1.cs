@@ -261,22 +261,27 @@ namespace VirtualDesktopHelper
             try
             {
                 // Path to the original VirtualDesktop executable
-                string virtualDesktopExePath = Path.Combine(
-                    Directory.GetParent(Directory.GetCurrentDirectory())?.FullName ?? "",
-                    "VirtualDesktop",
-                    "VirtualDesktop11.exe"
-                );
+                string virtualDesktopExePath = "";
 
-                if (!File.Exists(virtualDesktopExePath))
+                // Try various paths to find the VirtualDesktop executable
+                string[] possiblePaths = {
+                    // From the workspace root
+                    Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "..", "..", "..", "..", "..", "VirtualDesktop", "VirtualDesktop11.exe"),
+                    Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "..", "..", "..", "..", "VirtualDesktop", "VirtualDesktop11.exe"),
+                    Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "..", "..", "..", "VirtualDesktop", "VirtualDesktop11.exe"),
+                    Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "..", "..", "VirtualDesktop", "VirtualDesktop11.exe"),
+                    Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "..", "VirtualDesktop", "VirtualDesktop11.exe"),
+                    // Direct path from workspace root
+                    @"c:\Users\ANK\repos\virtual-desktop-tracker\VirtualDesktop\VirtualDesktop11.exe",
+                    // Relative from current directory
+                    Path.Combine(Directory.GetCurrentDirectory(), "..", "..", "..", "VirtualDesktop", "VirtualDesktop11.exe"),
+                    Path.Combine(Directory.GetCurrentDirectory(), "..", "..", "VirtualDesktop", "VirtualDesktop11.exe"),
+                    Path.Combine(Directory.GetCurrentDirectory(), "..", "VirtualDesktop", "VirtualDesktop11.exe")
+                };
+
+                foreach (string path in possiblePaths)
                 {
-                    // Try alternative paths
-                    string[] possiblePaths = {
-                        Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "..", "VirtualDesktop", "VirtualDesktop11.exe"),
-                        Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "..", "..", "VirtualDesktop", "VirtualDesktop11.exe"),
-                        Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "..", "..", "..", "VirtualDesktop", "VirtualDesktop11.exe")
-                    };
-
-                    foreach (string path in possiblePaths)
+                    try
                     {
                         string fullPath = Path.GetFullPath(path);
                         if (File.Exists(fullPath))
@@ -285,11 +290,16 @@ namespace VirtualDesktopHelper
                             break;
                         }
                     }
-
-                    if (!File.Exists(virtualDesktopExePath))
+                    catch
                     {
-                        throw new FileNotFoundException($"VirtualDesktop executable not found. Searched paths including: {virtualDesktopExePath}");
+                        // Skip invalid paths
+                        continue;
                     }
+                }
+
+                if (string.IsNullOrEmpty(virtualDesktopExePath) || !File.Exists(virtualDesktopExePath))
+                {
+                    throw new FileNotFoundException($"VirtualDesktop executable not found. Searched base directory: {AppDomain.CurrentDomain.BaseDirectory}");
                 }
 
                 // Run the VirtualDesktop.exe /LIST command
@@ -332,6 +342,91 @@ namespace VirtualDesktopHelper
             catch (Exception ex)
             {
                 return $"Error: {ex.Message}";
+            }
+        }
+
+        public static bool RenameCurrentDesktopUsingSubprocess(string newName)
+        {
+            try
+            {
+                // Path to the original VirtualDesktop executable
+                string virtualDesktopExePath = "";
+
+                // Try various paths to find the VirtualDesktop executable
+                string[] possiblePaths = {
+                    // From the workspace root
+                    Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "..", "..", "..", "..", "..", "VirtualDesktop", "VirtualDesktop11.exe"),
+                    Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "..", "..", "..", "..", "VirtualDesktop", "VirtualDesktop11.exe"),
+                    Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "..", "..", "..", "VirtualDesktop", "VirtualDesktop11.exe"),
+                    Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "..", "..", "VirtualDesktop", "VirtualDesktop11.exe"),
+                    Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "..", "VirtualDesktop", "VirtualDesktop11.exe"),
+                    // Direct path from workspace root
+                    @"c:\Users\ANK\repos\virtual-desktop-tracker\VirtualDesktop\VirtualDesktop11.exe",
+                    // Relative from current directory
+                    Path.Combine(Directory.GetCurrentDirectory(), "..", "..", "..", "VirtualDesktop", "VirtualDesktop11.exe"),
+                    Path.Combine(Directory.GetCurrentDirectory(), "..", "..", "VirtualDesktop", "VirtualDesktop11.exe"),
+                    Path.Combine(Directory.GetCurrentDirectory(), "..", "VirtualDesktop", "VirtualDesktop11.exe")
+                };
+
+                foreach (string path in possiblePaths)
+                {
+                    try
+                    {
+                        string fullPath = Path.GetFullPath(path);
+                        if (File.Exists(fullPath))
+                        {
+                            virtualDesktopExePath = fullPath;
+                            break;
+                        }
+                    }
+                    catch
+                    {
+                        // Skip invalid paths
+                        continue;
+                    }
+                }
+
+                if (string.IsNullOrEmpty(virtualDesktopExePath) || !File.Exists(virtualDesktopExePath))
+                {
+                    throw new FileNotFoundException($"VirtualDesktop executable not found. Searched base directory: {AppDomain.CurrentDomain.BaseDirectory}");
+                }
+
+                // Use GetCurrentDesktop and Name in a single command pipeline
+                ProcessStartInfo renameInfo = new ProcessStartInfo
+                {
+                    FileName = virtualDesktopExePath,
+                    Arguments = $"/GetCurrentDesktop /Name:\"{newName}\"",
+                    UseShellExecute = false,
+                    RedirectStandardOutput = true,
+                    RedirectStandardError = true,
+                    CreateNoWindow = true
+                };
+
+                using (Process process = Process.Start(renameInfo))
+                {
+                    if (process == null)
+                    {
+                        throw new InvalidOperationException("Failed to start VirtualDesktop process to rename desktop");
+                    }
+
+                    string output = process.StandardOutput.ReadToEnd();
+                    string error = process.StandardError.ReadToEnd();
+                    process.WaitForExit();
+
+                    // For VirtualDesktop.exe, the exit code is the desktop number, not an error indicator
+                    // We only consider it an error if there's actual error output
+                    if (!string.IsNullOrEmpty(error))
+                    {
+                        throw new InvalidOperationException($"VirtualDesktop process error: {error}. Output: {output}");
+                    }
+                }
+
+                return true;
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"Error renaming desktop: {ex.Message}");
+                return false;
             }
         }
     }
