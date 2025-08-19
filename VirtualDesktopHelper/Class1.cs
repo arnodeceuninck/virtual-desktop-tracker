@@ -264,16 +264,16 @@ namespace VirtualDesktopHelper
                 string virtualDesktopExePath = Path.Combine(
                     Directory.GetParent(Directory.GetCurrentDirectory())?.FullName ?? "",
                     "VirtualDesktop",
-                    "VirtualDesktop11-24H2.exe"
+                    "VirtualDesktop11.exe"
                 );
 
                 if (!File.Exists(virtualDesktopExePath))
                 {
                     // Try alternative paths
                     string[] possiblePaths = {
-                        Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "..", "VirtualDesktop", "VirtualDesktop11-24H2.exe"),
-                        Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "..", "..", "VirtualDesktop", "VirtualDesktop11-24H2.exe"),
-                        Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "..", "..", "..", "VirtualDesktop", "VirtualDesktop11-24H2.exe")
+                        Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "..", "VirtualDesktop", "VirtualDesktop11.exe"),
+                        Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "..", "..", "VirtualDesktop", "VirtualDesktop11.exe"),
+                        Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "..", "..", "..", "VirtualDesktop", "VirtualDesktop11.exe")
                     };
 
                     foreach (string path in possiblePaths)
