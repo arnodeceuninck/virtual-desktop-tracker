@@ -44,6 +44,16 @@ namespace VirtualDesktopTracker
 					{
 						if (!string.IsNullOrEmpty(_lastDesktopName))
 						{
+							// Special handling for screen state transitions
+							if (currentDesktop == "Screen Off" && _lastDesktopName != "Screen Off")
+							{
+								Console.WriteLine($"[{DateTime.Now:HH:mm:ss}] Screen locked/off detected - switching to low-frequency monitoring");
+							}
+							else if (_lastDesktopName == "Screen Off" && currentDesktop != "Screen Off")
+							{
+								Console.WriteLine($"[{DateTime.Now:HH:mm:ss}] Screen unlocked/on detected - resuming normal monitoring");
+							}
+							
 							Console.WriteLine($"[{DateTime.Now:HH:mm:ss}] Desktop changed: {_lastDesktopName} -> {currentDesktop}");
 						}
 						else
@@ -55,14 +65,17 @@ namespace VirtualDesktopTracker
 						DesktopUsageTracker.TrackDesktopUsage(currentDesktop);
 						_lastDesktopName = currentDesktop;
 					}
+
+					// Use different sleep intervals based on screen state
+					int sleepInterval = currentDesktop == "Screen Off" ? 10000 : 2000; // 10 seconds when screen off, 2 seconds when active
+					Thread.Sleep(sleepInterval);
 				}
 				catch (Exception ex)
 				{
 					Console.WriteLine($"[{DateTime.Now:HH:mm:ss}] Error: {ex.Message}");
+					// Check every 2 seconds even on error
+					Thread.Sleep(2000);
 				}
-
-				// Check every 2 seconds
-				Thread.Sleep(2000);
 			}
 		}
 
@@ -70,6 +83,12 @@ namespace VirtualDesktopTracker
 		{
 			try
 			{
+				// First check if screen is locked or off
+				if (ScreenStateDetector.IsScreenLockedOrOff())
+				{
+					return "Screen Off";
+				}
+
 				// Try using the subprocess method first
 				return DesktopNameProvider.GetCurrentDesktopNameUsingSubprocess();
 			}
@@ -77,11 +96,22 @@ namespace VirtualDesktopTracker
 			{
 				try
 				{
+					// Check screen state again before fallback
+					if (ScreenStateDetector.IsScreenLockedOrOff())
+					{
+						return "Screen Off";
+					}
+
 					// Fallback to API method
 					return GetCurrentDesktopNameUsingAPI();
 				}
 				catch (Exception ex)
 				{
+					// If we still can't get desktop name, check if screen is off
+					if (ScreenStateDetector.IsScreenLockedOrOff())
+					{
+						return "Screen Off";
+					}
 					return $"Error: {ex.Message}";
 				}
 			}

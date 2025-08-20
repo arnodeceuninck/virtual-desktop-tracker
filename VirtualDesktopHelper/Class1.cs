@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
 using System.Linq;
+using System.Runtime.InteropServices;
 using System.Text.Json;
 
 namespace VirtualDesktopHelper
@@ -251,6 +252,142 @@ namespace VirtualDesktopHelper
                 return $"{ts.Minutes}m {ts.Seconds}s";
             else
                 return $"{ts.Seconds}s";
+        }
+    }
+
+    public class ScreenStateDetector
+    {
+        [DllImport("user32.dll")]
+        private static extern bool GetLastInputInfo(ref LASTINPUTINFO plii);
+
+        [DllImport("user32.dll")]
+        private static extern uint GetIdleTime();
+
+        [DllImport("user32.dll")]
+        private static extern IntPtr OpenDesktop(string hDesktop, int Flags, bool Inherit, uint DesiredAccess);
+
+        [DllImport("user32.dll")]
+        private static extern bool CloseDesktop(IntPtr hDesktop);
+
+        [DllImport("user32.dll")]
+        private static extern bool SwitchDesktop(IntPtr hDesktop);
+
+        [DllImport("user32.dll")]
+        private static extern IntPtr GetThreadDesktop(uint dwThreadId);
+
+        [DllImport("kernel32.dll")]
+        private static extern uint GetCurrentThreadId();
+
+        [DllImport("user32.dll")]
+        private static extern bool SystemParametersInfo(uint uiAction, uint uiParam, ref bool pvParam, uint fWinIni);
+
+        [DllImport("user32.dll")]
+        private static extern IntPtr GetForegroundWindow();
+
+        [DllImport("user32.dll")]
+        private static extern int GetWindowText(IntPtr hWnd, System.Text.StringBuilder text, int count);
+
+        [DllImport("user32.dll")]
+        private static extern int GetClassName(IntPtr hWnd, System.Text.StringBuilder lpClassName, int nMaxCount);
+
+        private const uint SPI_GETSCREENSAVERRUNNING = 0x0072;
+
+        [StructLayout(LayoutKind.Sequential)]
+        struct LASTINPUTINFO
+        {
+            public static readonly int SizeOf = Marshal.SizeOf(typeof(LASTINPUTINFO));
+
+            [MarshalAs(UnmanagedType.U4)]
+            public int cbSize;
+            [MarshalAs(UnmanagedType.U4)]
+            public uint dwTime;
+        }
+
+        public static bool IsScreenLocked()
+        {
+            try
+            {
+                // Method 1: Check if screensaver is running
+                bool isScreenSaverRunning = false;
+                SystemParametersInfo(SPI_GETSCREENSAVERRUNNING, 0, ref isScreenSaverRunning, 0);
+                
+                if (isScreenSaverRunning)
+                    return true;
+
+                // Method 2: Check if the current foreground window is the lock screen
+                IntPtr foregroundWindow = GetForegroundWindow();
+                if (foregroundWindow != IntPtr.Zero)
+                {
+                    var className = new System.Text.StringBuilder(256);
+                    GetClassName(foregroundWindow, className, className.Capacity);
+                    string classNameString = className.ToString();
+
+                    // Check for Windows lock screen class names
+                    if (classNameString.Contains("LockApp") || 
+                        classNameString.Contains("Windows.UI.Core.CoreWindow") ||
+                        classNameString.Contains("ApplicationFrame"))
+                    {
+                        var windowText = new System.Text.StringBuilder(256);
+                        GetWindowText(foregroundWindow, windowText, windowText.Capacity);
+                        string windowTitle = windowText.ToString();
+                        
+                        // Additional check for lock screen window titles
+                        if (string.IsNullOrEmpty(windowTitle) || 
+                            windowTitle.Contains("Lock") ||
+                            windowTitle.Contains("Sign in"))
+                        {
+                            return true;
+                        }
+                    }
+                }
+
+                // Method 3: Try to open the current desktop
+                IntPtr hDesktop = OpenDesktop("default", 0, false, 0x0100);
+                if (hDesktop == IntPtr.Zero)
+                {
+                    return true; // Can't access desktop, likely locked
+                }
+                CloseDesktop(hDesktop);
+
+                return false;
+            }
+            catch
+            {
+                // If we can't determine the state, assume it's not locked
+                return false;
+            }
+        }
+
+        public static bool IsScreenOff()
+        {
+            try
+            {
+                // Check if user has been idle for a long time (indicating screen might be off)
+                LASTINPUTINFO lastInputInfo = new LASTINPUTINFO();
+                lastInputInfo.cbSize = Marshal.SizeOf(lastInputInfo);
+                
+                if (GetLastInputInfo(ref lastInputInfo))
+                {
+                    uint idleTime = (uint)Environment.TickCount - lastInputInfo.dwTime;
+                    // If idle for more than 10 minutes (600000 ms), consider screen might be off
+                    // This is more conservative to avoid false positives
+                    if (idleTime > 600000)
+                    {
+                        return true;
+                    }
+                }
+
+                return false;
+            }
+            catch
+            {
+                return false;
+            }
+        }
+
+        public static bool IsScreenLockedOrOff()
+        {
+            return IsScreenLocked() || IsScreenOff();
         }
     }
 
