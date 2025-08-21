@@ -190,6 +190,16 @@ namespace VirtualDesktopDisplayer
                         }
                         else if (!string.IsNullOrEmpty(_lastDesktopName))
                         {
+                            // Special handling for screen state transitions (like tracker)
+                            if (currentDesktop == "Screen Off" && _lastDesktopName != "Screen Off")
+                            {
+                                System.Diagnostics.Debug.WriteLine($"[{DateTime.Now:HH:mm:ss}] Screen locked/off detected");
+                            }
+                            else if (_lastDesktopName == "Screen Off" && currentDesktop != "Screen Off")
+                            {
+                                System.Diagnostics.Debug.WriteLine($"[{DateTime.Now:HH:mm:ss}] Screen unlocked/on detected");
+                            }
+                            
                             // Desktop changed
                             DesktopUsageTracker.TrackDesktopUsage(currentDesktop);
                         }
@@ -206,6 +216,13 @@ namespace VirtualDesktopDisplayer
                 // Resize form to fit the label
                 this.Size = desktopLabel.PreferredSize;
                 PositionWindow();
+                
+                // Adjust timer interval based on screen state (like tracker)
+                int newInterval = currentDesktop == "Screen Off" ? 10000 : 2000; // 10 seconds when screen off, 2 seconds when active
+                if (updateTimer.Interval != newInterval)
+                {
+                    updateTimer.Interval = newInterval;
+                }
             }
             catch (Exception ex)
             {
@@ -217,6 +234,12 @@ namespace VirtualDesktopDisplayer
         {
             try
             {
+                // First check if screen is locked or off (same as tracker)
+                if (ScreenStateDetector.IsScreenLockedOrOff())
+                {
+                    return "Screen Off";
+                }
+
                 // Try using the subprocess method first (same logic as tracker)
                 return DesktopNameProvider.GetCurrentDesktopNameUsingSubprocess();
             }
@@ -224,11 +247,22 @@ namespace VirtualDesktopDisplayer
             {
                 try
                 {
+                    // Check screen state again before fallback
+                    if (ScreenStateDetector.IsScreenLockedOrOff())
+                    {
+                        return "Screen Off";
+                    }
+
                     // Fallback to API method
                     return GetCurrentDesktopNameUsingAPI();
                 }
                 catch (Exception ex)
                 {
+                    // If we still can't get desktop name, check if screen is off
+                    if (ScreenStateDetector.IsScreenLockedOrOff())
+                    {
+                        return "Screen Off";
+                    }
                     return $"Error: {ex.Message}";
                 }
             }
