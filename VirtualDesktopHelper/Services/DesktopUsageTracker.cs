@@ -174,7 +174,7 @@ namespace VirtualDesktopHelper.Services
 
                 var reportGenerator = new UsageReportGenerator(_config);
                 var allEntries = GetAllUsageHistory();
-                var reportContent = reportGenerator.GenerateReport(allEntries);
+                var reportContent = reportGenerator.GenerateReport(allEntries, currentDayOnly: true);
 
                 File.WriteAllText(reportPath, reportContent);
             }

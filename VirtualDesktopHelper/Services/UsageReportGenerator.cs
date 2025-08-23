@@ -23,21 +23,26 @@ namespace VirtualDesktopHelper.Services
         /// Generates a comprehensive usage report from the provided usage entries.
         /// </summary>
         /// <param name="allEntries">All usage entries across all sessions.</param>
+        /// <param name="currentDayOnly">If true, only includes entries from the current day.</param>
         /// <returns>Formatted report as a string.</returns>
-        public string GenerateReport(List<DesktopUsageEntry> allEntries)
+        public string GenerateReport(List<DesktopUsageEntry> allEntries, bool currentDayOnly = false)
         {
             var report = new StringBuilder();
             
-            BuildReportHeader(report);
+            // Filter entries for current day if requested
+            var filteredEntries = currentDayOnly ? FilterCurrentDayEntries(allEntries) : allEntries;
             
-            if (!allEntries.Any())
+            BuildReportHeader(report, currentDayOnly);
+            
+            if (!filteredEntries.Any())
             {
-                report.AppendLine("No usage data available.");
+                string noDataMessage = currentDayOnly ? "No usage data available for today." : "No usage data available.";
+                report.AppendLine(noDataMessage);
                 return report.ToString();
             }
 
-            var groupedByDesktop = GroupByDesktop(allEntries);
-            var groupedByDate = GroupByDate(allEntries);
+            var groupedByDesktop = GroupByDesktop(filteredEntries);
+            var groupedByDate = GroupByDate(filteredEntries);
 
             BuildTotalTimeSection(report, groupedByDesktop);
             BuildDailyBreakdownSection(report, groupedByDate);
@@ -45,10 +50,15 @@ namespace VirtualDesktopHelper.Services
             return report.ToString();
         }
 
-        private void BuildReportHeader(StringBuilder report)
+        private void BuildReportHeader(StringBuilder report, bool currentDayOnly = false)
         {
-            report.AppendLine("Virtual Desktop Usage Report");
+            string title = currentDayOnly ? "Virtual Desktop Usage Report - Today" : "Virtual Desktop Usage Report";
+            report.AppendLine(title);
             report.AppendLine("Generated: " + DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss"));
+            if (currentDayOnly)
+            {
+                report.AppendLine("Report Date: " + DateTime.Today.ToString("yyyy-MM-dd"));
+            }
             report.AppendLine(new string('=', 50));
             report.AppendLine();
         }
@@ -82,6 +92,15 @@ namespace VirtualDesktopHelper.Services
             }
 
             return groupedByDate;
+        }
+
+        private List<DesktopUsageEntry> FilterCurrentDayEntries(List<DesktopUsageEntry> allEntries)
+        {
+            var today = DateTime.Today;
+            var tomorrow = today.AddDays(1);
+
+            return allEntries.Where(entry => 
+                entry.StartTime >= today && entry.StartTime < tomorrow).ToList();
         }
 
         private void BuildTotalTimeSection(StringBuilder report, Dictionary<string, TimeSpan> groupedByDesktop)
