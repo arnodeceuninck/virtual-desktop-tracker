@@ -86,53 +86,19 @@ namespace VirtualDesktopHelper.Services
             if (_cachedExecutablePath != null && File.Exists(_cachedExecutablePath))
                 return _cachedExecutablePath;
 
-            string[] possiblePaths = {
-                // Primary: Use VirtualDesktop11.exe (most compatible)
-                Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "..", "..", "..", "..", "..", "VirtualDesktop", "VirtualDesktop11.exe"),
-                Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "..", "..", "..", "..", "VirtualDesktop", "VirtualDesktop11.exe"),
-                Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "..", "..", "..", "VirtualDesktop", "VirtualDesktop11.exe"),
-                Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "..", "..", "VirtualDesktop", "VirtualDesktop11.exe"),
-                Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "..", "VirtualDesktop", "VirtualDesktop11.exe"),
-                
-                // Direct path from workspace root (primary)
-                @"c:\Users\ANK\repos\virtual-desktop-tracker\VirtualDesktop\VirtualDesktop11.exe",
-                
-                // Relative from current directory (primary)
-                Path.Combine(Directory.GetCurrentDirectory(), "..", "..", "..", "VirtualDesktop", "VirtualDesktop11.exe"),
-                Path.Combine(Directory.GetCurrentDirectory(), "..", "..", "VirtualDesktop", "VirtualDesktop11.exe"),
-                Path.Combine(Directory.GetCurrentDirectory(), "..", "VirtualDesktop", "VirtualDesktop11.exe"),
-                
-                // Fallback: 24H2 version (if VirtualDesktop11.exe not available)
-                Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "..", "..", "..", "..", "..", "VirtualDesktop", "VirtualDesktop11-24H2.exe"),
-                Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "..", "..", "..", "..", "VirtualDesktop", "VirtualDesktop11-24H2.exe"),
-                Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "..", "..", "..", "VirtualDesktop", "VirtualDesktop11-24H2.exe"),
-                Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "..", "..", "VirtualDesktop", "VirtualDesktop11-24H2.exe"),
-                Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "..", "VirtualDesktop", "VirtualDesktop11-24H2.exe"),
-                @"c:\Users\ANK\repos\virtual-desktop-tracker\VirtualDesktop\VirtualDesktop11-24H2.exe",
-                Path.Combine(Directory.GetCurrentDirectory(), "..", "..", "..", "VirtualDesktop", "VirtualDesktop11-24H2.exe"),
-                Path.Combine(Directory.GetCurrentDirectory(), "..", "..", "VirtualDesktop", "VirtualDesktop11-24H2.exe"),
-                Path.Combine(Directory.GetCurrentDirectory(), "..", "VirtualDesktop", "VirtualDesktop11-24H2.exe")
-            };
-
-            foreach (string path in possiblePaths)
+            // The executable is copied to the output directory during build
+            string baseDirectory = AppDomain.CurrentDomain.BaseDirectory;
+            string executablePath = Path.Combine(baseDirectory, _config.VirtualDesktopExecutableName);
+            
+            if (!File.Exists(executablePath))
             {
-                try
-                {
-                    string fullPath = Path.GetFullPath(path);
-                    if (File.Exists(fullPath))
-                    {
-                        _cachedExecutablePath = fullPath;
-                        return fullPath;
-                    }
-                }
-                catch
-                {
-                    // Skip invalid paths
-                    continue;
-                }
+                throw new FileNotFoundException(
+                    $"VirtualDesktop executable '{_config.VirtualDesktopExecutableName}' not found in '{baseDirectory}'. " +
+                    $"Please ensure the executable is copied to the output directory during build.");
             }
 
-            throw new FileNotFoundException($"VirtualDesktop executable not found. Searched base directory: {AppDomain.CurrentDomain.BaseDirectory}");
+            _cachedExecutablePath = executablePath;
+            return executablePath;
         }
 
         private string ExecuteVirtualDesktopCommand(string executablePath, string arguments)

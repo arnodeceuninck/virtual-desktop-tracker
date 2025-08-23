@@ -68,6 +68,11 @@ namespace VirtualDesktopHelper.Configuration
         public int SubprocessTimeout { get; set; } = 5000;
 
         /// <summary>
+        /// Name of the VirtualDesktop executable to use.
+        /// </summary>
+        public string VirtualDesktopExecutableName { get; set; } = "VirtualDesktop11.exe";
+
+        /// <summary>
         /// Gets the singleton instance of the configuration.
         /// </summary>
         public static TrackerConfiguration Instance { get; } = new TrackerConfiguration();
