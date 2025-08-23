@@ -25,7 +25,19 @@ namespace VirtualDesktopHelper.Models
         /// <summary>
         /// Calculated duration of desktop usage. If EndTime is null, calculates from StartTime to now.
         /// </summary>
-        public TimeSpan Duration => EndTime?.Subtract(StartTime) ?? DateTime.Now.Subtract(StartTime);
+        /// <exception cref="InvalidOperationException">Thrown when EndTime is before StartTime.</exception>
+        public TimeSpan Duration 
+        { 
+            get
+            {
+                var endTime = EndTime ?? DateTime.Now;
+                if (endTime < StartTime)
+                {
+                    throw new InvalidOperationException("The end time cannot be before start time.");
+                }
+                return endTime.Subtract(StartTime);
+            }
+        }
 
         /// <summary>
         /// Indicates whether this desktop session is currently active (EndTime is null).

@@ -8,6 +8,7 @@ using System.Threading.Tasks;
 using VirtualDesktopHelper.Configuration;
 using VirtualDesktopHelper.Interfaces;
 using VirtualDesktopHelper.Models;
+using VirtualDesktopHelper.Services;
 
 namespace VirtualDesktopHelper.Services
 {
@@ -19,15 +20,18 @@ namespace VirtualDesktopHelper.Services
         private readonly TrackerConfiguration _config;
         private readonly TimelyConfiguration _timelyConfig;
         private readonly IUsageConsolidationService _consolidationService;
+        private readonly ProjectDetectionService _projectDetectionService;
 
         public TimelyJavaScriptGenerator(
             TrackerConfiguration? config = null, 
             TimelyConfiguration? timelyConfig = null,
-            IUsageConsolidationService? consolidationService = null)
+            IUsageConsolidationService? consolidationService = null,
+            ProjectDetectionService? projectDetectionService = null)
         {
             _config = config ?? TrackerConfiguration.Instance;
             _timelyConfig = timelyConfig ?? TimelyConfiguration.Instance;
             _consolidationService = consolidationService ?? new UsageConsolidationService(_config);
+            _projectDetectionService = projectDetectionService ?? new ProjectDetectionService();
         }
 
         /// <summary>
@@ -56,13 +60,13 @@ namespace VirtualDesktopHelper.Services
                 ? _consolidationService.ConsolidateUsageEntries(filteredEntries)
                 : filteredEntries;
 
-            // Group consecutive activities by project name
-            var projectGroups = GroupConsecutiveActivities(consolidatedEntries);
+            // Group consecutive activities by desktop name
+            var desktopGroups = GroupConsecutiveActivities(consolidatedEntries);
             
             // Determine target date
             string targetDate = filteredEntries.FirstOrDefault()?.StartTime.ToString("yyyy-MM-dd") ?? DateTime.Now.ToString("yyyy-MM-dd");
 
-            return GenerateJavaScriptContent(projectGroups, targetDate);
+            return GenerateJavaScriptContent(desktopGroups, targetDate);
         }
 
         /// <summary>
@@ -107,29 +111,34 @@ namespace VirtualDesktopHelper.Services
 
         private Dictionary<string, List<TimestampEntry>> GroupConsecutiveActivities(List<DesktopUsageEntry> entries)
         {
-            var projectGroups = new Dictionary<string, List<TimestampEntry>>();
+            var desktopGroups = new Dictionary<string, List<TimestampEntry>>();
 
             // First merge consecutive identical activities
             var merged = MergeConsecutiveActivities(entries);
 
+            // Group by desktop name, not by project
             foreach (var entry in merged.OrderBy(e => e.StartTime))
             {
-                string projectName = entry.DesktopName;
+                var project = _projectDetectionService.DetectProjectForEntry(entry);
+                string desktopName = entry.DesktopName;
                 
-                if (!projectGroups.ContainsKey(projectName))
+                if (!desktopGroups.ContainsKey(desktopName))
                 {
-                    projectGroups[projectName] = new List<TimestampEntry>();
+                    desktopGroups[desktopName] = new List<TimestampEntry>();
                 }
 
-                projectGroups[projectName].Add(new TimestampEntry
+                desktopGroups[desktopName].Add(new TimestampEntry
                 {
                     From = entry.StartTime.ToString($"yyyy-MM-ddTHH:mm:ss.000{_timelyConfig.TimezoneOffset}"),
                     To = (entry.EndTime ?? DateTime.Now).ToString($"yyyy-MM-ddTHH:mm:ss.000{_timelyConfig.TimezoneOffset}"),
-                    DurationMinutes = entry.Duration.TotalMinutes
+                    DurationMinutes = entry.Duration.TotalMinutes,
+                    ProjectId = project.Id,
+                    ProjectName = project.Name,
+                    DesktopName = entry.DesktopName
                 });
             }
 
-            return projectGroups;
+            return desktopGroups;
         }
 
         private List<DesktopUsageEntry> MergeConsecutiveActivities(List<DesktopUsageEntry> entries)
@@ -163,7 +172,7 @@ namespace VirtualDesktopHelper.Services
             return merged;
         }
 
-        private string GenerateJavaScriptContent(Dictionary<string, List<TimestampEntry>> projectGroups, string targetDate)
+        private string GenerateJavaScriptContent(Dictionary<string, List<TimestampEntry>> desktopGroups, string targetDate)
         {
             var js = new StringBuilder();
 
@@ -192,7 +201,7 @@ namespace VirtualDesktopHelper.Services
             GenerateSubmissionFunction(js, targetDate);
 
             // Entry submission calls
-            GenerateEntrySubmissions(js, projectGroups);
+            GenerateEntrySubmissions(js, desktopGroups);
 
             // Footer
             js.AppendLine();
@@ -209,7 +218,7 @@ namespace VirtualDesktopHelper.Services
         private void GenerateSubmissionFunction(StringBuilder js, string targetDate)
         {
             js.AppendLine("// Function to make a Timely API request");
-            js.AppendLine("async function submitTimelyEntry(projectName, timestamps, totalMinutes) {");
+            js.AppendLine("async function submitTimelyEntry(projectName, projectId, timestamps, totalMinutes) {");
             js.AppendLine("    const totalHours = Math.floor(totalMinutes / 60);");
             js.AppendLine("    const remainingMinutes = totalMinutes % 60;");
             js.AppendLine();
@@ -220,7 +229,7 @@ namespace VirtualDesktopHelper.Services
             js.AppendLine("            \"timer_state\": \"default\",");
             js.AppendLine("            \"timer_started_on\": 0,");
             js.AppendLine("            \"timer_stopped_on\": 0,");
-            js.AppendLine($"            \"project_id\": {_timelyConfig.ProjectId},");
+            js.AppendLine("            \"project_id\": projectId,");
             js.AppendLine("            \"forecast_id\": null,");
             js.AppendLine("            \"label_ids\": [],");
             js.AppendLine("            \"user_ids\": [],");
@@ -304,18 +313,22 @@ namespace VirtualDesktopHelper.Services
             js.AppendLine("    }");
         }
 
-        private void GenerateEntrySubmissions(StringBuilder js, Dictionary<string, List<TimestampEntry>> projectGroups)
+        private void GenerateEntrySubmissions(StringBuilder js, Dictionary<string, List<TimestampEntry>> desktopGroups)
         {
-            foreach (var kvp in projectGroups)
+            foreach (var kvp in desktopGroups)
             {
-                string projectName = kvp.Key;
+                string desktopName = kvp.Key;
                 var timestamps = kvp.Value;
                 double totalMinutes = timestamps.Sum(t => t.DurationMinutes);
                 int hours = (int)(totalMinutes / 60);
                 int minutes = (int)(totalMinutes % 60);
 
+                // Get project ID from the first timestamp entry (all should have the same project for a desktop)
+                long projectId = timestamps.FirstOrDefault()?.ProjectId ?? _timelyConfig.DefaultProjectId;
+                string projectName = timestamps.FirstOrDefault()?.ProjectName ?? "Unknown Project";
+
                 js.AppendLine();
-                js.AppendLine($"    console.log('{projectName}: {hours}h {minutes}m');");
+                js.AppendLine($"    console.log('{desktopName} (Project: {projectName}): {hours}h {minutes}m');");
                 js.AppendLine();
                 js.AppendLine("    await delay(1000); // Wait 1 second between requests");
 
@@ -325,7 +338,8 @@ namespace VirtualDesktopHelper.Services
                 string timestampsJs = "[" + string.Join(", ", timestampObjects) + "]";
 
                 js.AppendLine("    await submitTimelyEntry(");
-                js.AppendLine($"        \"{projectName}\",");
+                js.AppendLine($"        \"{desktopName}\","); // Use desktop name as the note
+                js.AppendLine($"        {projectId},");
                 js.AppendLine($"        {timestampsJs},");
                 js.AppendLine($"        {totalMinutes}");
                 js.AppendLine("    );");
@@ -340,6 +354,8 @@ namespace VirtualDesktopHelper.Services
                 ? _consolidationService.ConsolidateUsageEntries(filteredEntries)
                 : filteredEntries;
 
+            var projectStatistics = _projectDetectionService.GetProjectStatistics(consolidatedEntries);
+
             var jsonReport = new
             {
                 GeneratedAt = DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss"),
@@ -352,15 +368,28 @@ namespace VirtualDesktopHelper.Services
                     EnableConsecutiveMerging = _config.EnableConsecutiveMerging,
                     EnableCustomConsolidation = _config.EnableCustomConsolidation
                 },
-                Activities = consolidatedEntries.Select(entry => new
+                ProjectSummary = projectStatistics.Select(kvp => new
                 {
-                    DesktopName = entry.DesktopName,
-                    StartTime = entry.StartTime.ToString("yyyy-MM-dd HH:mm:ss"),
-                    EndTime = entry.EndTime?.ToString("yyyy-MM-dd HH:mm:ss"),
-                    DurationSeconds = (int)entry.Duration.TotalSeconds,
-                    DurationMinutes = Math.Round(entry.Duration.TotalMinutes, 2),
-                    DurationFormatted = FormatTimeSpan(entry.Duration),
-                    Date = entry.StartTime.ToString("yyyy-MM-dd")
+                    ProjectId = kvp.Key.Id,
+                    ProjectName = kvp.Key.Name,
+                    TotalDurationMinutes = Math.Round(kvp.Value.TotalMinutes, 2),
+                    TotalDurationFormatted = FormatTimeSpan(kvp.Value)
+                }).ToList(),
+                Activities = consolidatedEntries.Select(entry => 
+                {
+                    var project = _projectDetectionService.DetectProjectForEntry(entry);
+                    return new
+                    {
+                        DesktopName = entry.DesktopName,
+                        StartTime = entry.StartTime.ToString("yyyy-MM-dd HH:mm:ss"),
+                        EndTime = entry.EndTime?.ToString("yyyy-MM-dd HH:mm:ss"),
+                        DurationSeconds = (int)entry.Duration.TotalSeconds,
+                        DurationMinutes = Math.Round(entry.Duration.TotalMinutes, 2),
+                        DurationFormatted = FormatTimeSpan(entry.Duration),
+                        Date = entry.StartTime.ToString("yyyy-MM-dd"),
+                        ProjectId = project.Id,
+                        ProjectName = project.Name
+                    };
                 }).ToList()
             };
 
@@ -411,6 +440,9 @@ namespace VirtualDesktopHelper.Services
             public string From { get; set; } = "";
             public string To { get; set; } = "";
             public double DurationMinutes { get; set; }
+            public long ProjectId { get; set; }
+            public string ProjectName { get; set; } = "";
+            public string DesktopName { get; set; } = "";
         }
     }
 }

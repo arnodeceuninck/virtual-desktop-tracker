@@ -24,9 +24,9 @@ namespace VirtualDesktopHelper.Configuration
         public string WorkspaceId { get; set; } = "946869";
 
         /// <summary>
-        /// Timely project ID for time entries
+        /// Default Timely project ID for time entries (used when no specific project is detected)
         /// </summary>
-        public long ProjectId { get; set; } = 3572980;
+        public long DefaultProjectId { get; set; } = 3572980;
 
         /// <summary>
         /// Timely user ID
@@ -147,7 +147,7 @@ namespace VirtualDesktopHelper.Configuration
         {
             return !string.IsNullOrEmpty(CsrfToken) && 
                    !string.IsNullOrEmpty(CookieString) &&
-                   ProjectId > 0 &&
+                   DefaultProjectId > 0 &&
                    UserId > 0;
         }
 

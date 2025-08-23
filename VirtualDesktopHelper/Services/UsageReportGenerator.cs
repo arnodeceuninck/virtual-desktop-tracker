@@ -109,6 +109,9 @@ namespace VirtualDesktopHelper.Services
                 // Create JSON filename by replacing .txt with .json
                 var jsonFilePath = Path.ChangeExtension(textReportFilePath, ".json");
                 
+                // For now, create a simple report without project detection due to circular dependencies
+                // TODO: Fix circular dependency and add project detection later
+                
                 // Create JSON-friendly object with additional metadata
                 var jsonReport = new
                 {
