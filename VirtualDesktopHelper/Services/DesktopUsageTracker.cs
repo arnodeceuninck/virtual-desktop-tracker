@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Text.Json;
+using System.Threading.Tasks;
 using VirtualDesktopHelper.Configuration;
 using VirtualDesktopHelper.Interfaces;
 using VirtualDesktopHelper.Models;
@@ -163,7 +164,7 @@ namespace VirtualDesktopHelper.Services
             return _logDirectory;
         }
 
-        public void GenerateUsageReport()
+        public async Task GenerateUsageReportAsync()
         {
             try
             {
@@ -174,9 +175,9 @@ namespace VirtualDesktopHelper.Services
 
                 var reportGenerator = new UsageReportGenerator(_config);
                 var allEntries = GetAllUsageHistory();
-                var reportContent = reportGenerator.GenerateReport(allEntries, currentDayOnly: true);
-
-                File.WriteAllText(reportPath, reportContent);
+                
+                // Generate both text and JSON reports
+                await reportGenerator.GenerateReportWithJsonAsync(allEntries, reportPath, currentDayOnly: true);
             }
             catch (Exception ex)
             {

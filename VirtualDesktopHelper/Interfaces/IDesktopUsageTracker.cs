@@ -1,4 +1,5 @@
 using System.Collections.Generic;
+using System.Threading.Tasks;
 using VirtualDesktopHelper.Models;
 
 namespace VirtualDesktopHelper.Interfaces
@@ -41,6 +42,6 @@ namespace VirtualDesktopHelper.Interfaces
         /// <summary>
         /// Generates a comprehensive usage report from all sessions.
         /// </summary>
-        void GenerateUsageReport();
+        Task GenerateUsageReportAsync();
     }
 }

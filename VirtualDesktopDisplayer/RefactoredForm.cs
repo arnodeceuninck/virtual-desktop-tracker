@@ -383,11 +383,11 @@ namespace VirtualDesktopDisplayer
             }
         }
 
-        private void OnGenerateReportClick(object? sender, EventArgs e)
+        private async void OnGenerateReportClick(object? sender, EventArgs e)
         {
             try
             {
-                _usageTracker.GenerateUsageReport();
+                await _usageTracker.GenerateUsageReportAsync();
                 string reportPath = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments),
                                                 _config.ReportFileName);
 
