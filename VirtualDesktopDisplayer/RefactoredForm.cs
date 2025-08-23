@@ -291,6 +291,7 @@ namespace VirtualDesktopDisplayer
             contextMenu.Items.Add("View Usage Log", null, OnViewUsageLogClick);
             contextMenu.Items.Add("Generate Report", null, OnGenerateReportClick);
             contextMenu.Items.Add("Copy JavaScript", null, OnCopyJavaScriptClick);
+            contextMenu.Items.Add("Configure Timely", null, OnConfigureTimelyClick);
             contextMenu.Items.Add("Open Log Folder", null, OnOpenLogFolderClick);
             contextMenu.Items.Add(new ToolStripSeparator());
             contextMenu.Items.Add("Exit", null, (s, args) => _applicationService.ExitApplication());
@@ -470,10 +471,22 @@ namespace VirtualDesktopDisplayer
 
         private void ShowTimelyConfigurationDialog()
         {
-            var configForm = new TimelyConfigurationForm();
+            var configForm = new TimelyConfigurationFormEnhanced();
             if (configForm.ShowDialog() == DialogResult.OK)
             {
                 _applicationService.ShowInformation("Timely configuration saved successfully!");
+            }
+        }
+
+        private void OnConfigureTimelyClick(object? sender, EventArgs e)
+        {
+            try
+            {
+                ShowTimelyConfigurationDialog();
+            }
+            catch (Exception ex)
+            {
+                _applicationService.ShowError($"Error opening Timely configuration: {ex.Message}");
             }
         }
 
