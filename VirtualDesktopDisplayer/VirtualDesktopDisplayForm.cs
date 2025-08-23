@@ -293,6 +293,7 @@ namespace VirtualDesktopDisplayer
             contextMenu.Items.Add(new ToolStripSeparator());
             contextMenu.Items.Add("Generate Report", null, OnGenerateReportClick);
             contextMenu.Items.Add("Configure Timely", null, OnConfigureTimelyClick);
+            contextMenu.Items.Add("Configure Projects", null, OnConfigureProjectsClick);
             contextMenu.Items.Add("Copy Timely JavaScript", null, OnCopyJavaScriptClick);
             contextMenu.Items.Add(new ToolStripSeparator());
             contextMenu.Items.Add("Exit", null, (s, args) => _applicationService.ExitApplication());
@@ -489,6 +490,24 @@ namespace VirtualDesktopDisplayer
             catch (Exception ex)
             {
                 _applicationService.ShowError($"Error opening Timely configuration: {ex.Message}");
+            }
+        }
+
+        private void OnConfigureProjectsClick(object? sender, EventArgs e)
+        {
+            try
+            {
+                using (var form = new ProjectConfigurationForm())
+                {
+                    if (form.ShowDialog() == DialogResult.OK)
+                    {
+                        _applicationService.ShowInformation("Project configuration saved successfully!");
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                _applicationService.ShowError($"Error opening project configuration: {ex.Message}");
             }
         }
 

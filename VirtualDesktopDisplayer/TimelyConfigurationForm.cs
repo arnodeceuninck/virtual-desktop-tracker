@@ -198,7 +198,7 @@ namespace VirtualDesktopDisplayer
         private void LoadCurrentConfiguration()
         {
             if (txtWorkspaceId != null) txtWorkspaceId.Text = _config.WorkspaceId;
-            if (txtProjectId != null) txtProjectId.Text = _config.ProjectId.ToString();
+            if (txtProjectId != null) txtProjectId.Text = _config.DefaultProjectId.ToString();
             if (txtUserId != null) txtUserId.Text = _config.UserId.ToString();
             if (txtSocketId != null) txtSocketId.Text = _config.SocketId;
             if (txtCsrfToken != null) txtCsrfToken.Text = _config.CsrfToken;
@@ -213,7 +213,7 @@ namespace VirtualDesktopDisplayer
                 if (txtWorkspaceId != null) _config.WorkspaceId = txtWorkspaceId.Text.Trim();
                 
                 if (txtProjectId != null && long.TryParse(txtProjectId.Text.Trim(), out long projectId))
-                    _config.ProjectId = projectId;
+                    _config.DefaultProjectId = projectId;
                 else
                 {
                     MessageBox.Show("Please enter a valid Project ID (numeric value).", "Validation Error", 
