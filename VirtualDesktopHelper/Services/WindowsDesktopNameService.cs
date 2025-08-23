@@ -39,7 +39,7 @@ namespace VirtualDesktopHelper.Services
                 }
 
                 return GetCurrentDesktopNameFromSubprocess();
-            }, "GetCurrentDesktopName", _config.SubprocessRetryCount, TimeSpan.FromMilliseconds(_config.SubprocessRetryDelay));
+            }, "GetCurrentDesktopName", _config.SubprocessRetryCount, _config.SubprocessRetryDelay);
         }
 
         public bool RenameCurrentDesktop(string newName)
@@ -54,7 +54,7 @@ namespace VirtualDesktopHelper.Services
             {
                 string executablePath = GetVirtualDesktopExecutablePath();
                 return ExecuteRenameCommand(executablePath, newName);
-            }, "RenameCurrentDesktop", _config.SubprocessRetryCount, TimeSpan.FromMilliseconds(_config.SubprocessRetryDelay));
+            }, "RenameCurrentDesktop", _config.SubprocessRetryCount, _config.SubprocessRetryDelay);
         }
 
         private string GetCurrentDesktopNameFromSubprocess()
@@ -118,11 +118,11 @@ namespace VirtualDesktopHelper.Services
                 if (process == null)
                     throw new InvalidOperationException("Failed to start VirtualDesktop process");
 
-                bool finished = process.WaitForExit(_config.SubprocessTimeout);
+                bool finished = process.WaitForExit((int)_config.SubprocessTimeout.TotalMilliseconds);
                 if (!finished)
                 {
                     process.Kill();
-                    throw new TimeoutException($"VirtualDesktop process timed out after {_config.SubprocessTimeout}ms");
+                    throw new TimeoutException($"VirtualDesktop process timed out after {_config.SubprocessTimeout}");
                 }
 
                 string output = process.StandardOutput.ReadToEnd();

@@ -84,7 +84,7 @@ namespace VirtualDesktopHelper.Services
                 if (GetLastInputInfo(ref lastInputInfo))
                 {
                     uint idleTime = (uint)Environment.TickCount - lastInputInfo.dwTime;
-                    return idleTime > _config.ScreenOffIdleThreshold;
+                    return idleTime > _config.ScreenOffIdleThreshold.TotalMilliseconds;
                 }
 
                 return false;

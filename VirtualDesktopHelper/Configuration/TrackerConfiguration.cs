@@ -8,19 +8,19 @@ namespace VirtualDesktopHelper.Configuration
     public class TrackerConfiguration
     {
         /// <summary>
-        /// How often to check for desktop changes when screen is active (in milliseconds).
+        /// How often to check for desktop changes when screen is active.
         /// </summary>
-        public int ActiveScreenUpdateInterval { get; set; } = 2000;
+        public TimeSpan ActiveScreenUpdateInterval { get; set; } = TimeSpan.FromSeconds(2);
 
         /// <summary>
-        /// How often to check for desktop changes when screen is off/locked (in milliseconds).
+        /// How often to check for desktop changes when screen is off/locked.
         /// </summary>
-        public int InactiveScreenUpdateInterval { get; set; } = 10000;
+        public TimeSpan InactiveScreenUpdateInterval { get; set; } = TimeSpan.FromSeconds(10);
 
         /// <summary>
-        /// How long user must be idle before considering screen "off" (in milliseconds).
+        /// How long user must be idle before considering screen "off".
         /// </summary>
-        public int ScreenOffIdleThreshold { get; set; } = 600000; // 10 minutes
+        public TimeSpan ScreenOffIdleThreshold { get; set; } = TimeSpan.FromMinutes(10);
 
         /// <summary>
         /// Margin from screen edge for display positioning (in pixels).
@@ -53,19 +53,19 @@ namespace VirtualDesktopHelper.Configuration
         public int SubprocessRetryCount { get; set; } = 3;
 
         /// <summary>
-        /// Delay between retry attempts (in milliseconds).
+        /// Delay between retry attempts.
         /// </summary>
-        public int SubprocessRetryDelay { get; set; } = 100;
+        public TimeSpan SubprocessRetryDelay { get; set; } = TimeSpan.FromMilliseconds(100);
 
         /// <summary>
-        /// General retry delay for error handler operations (in milliseconds).
+        /// General retry delay for error handler operations.
         /// </summary>
-        public int RetryDelayMs { get; set; } = 1000;
+        public TimeSpan RetryDelay { get; set; } = TimeSpan.FromSeconds(1);
 
         /// <summary>
-        /// Timeout for subprocess operations (in milliseconds).
+        /// Timeout for subprocess operations.
         /// </summary>
-        public int SubprocessTimeout { get; set; } = 5000;
+        public TimeSpan SubprocessTimeout { get; set; } = TimeSpan.FromSeconds(5);
 
         /// <summary>
         /// Name of the VirtualDesktop executable to use.

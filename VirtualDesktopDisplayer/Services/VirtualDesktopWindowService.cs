@@ -84,7 +84,7 @@ namespace VirtualDesktopDisplayer.Services
                 {
                     if (process != null)
                     {
-                        process.WaitForExit(_config.SubprocessTimeout);
+                        process.WaitForExit((int)_config.SubprocessTimeout.TotalMilliseconds);
                         return process.ExitCode == 0;
                     }
                 }

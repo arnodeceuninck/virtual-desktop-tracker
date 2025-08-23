@@ -142,7 +142,7 @@ namespace VirtualDesktopDisplayer
         {
             updateTimer = new System.Windows.Forms.Timer
             {
-                Interval = _config.ActiveScreenUpdateInterval
+                Interval = (int)_config.ActiveScreenUpdateInterval.TotalMilliseconds
             };
             updateTimer.Tick += OnUpdateTimerTick;
             updateTimer.Start();
@@ -233,8 +233,8 @@ namespace VirtualDesktopDisplayer
             if (updateTimer == null) return;
 
             int newInterval = currentDesktop == "Screen Off" ? 
-                _config.InactiveScreenUpdateInterval : 
-                _config.ActiveScreenUpdateInterval;
+                (int)_config.InactiveScreenUpdateInterval.TotalMilliseconds : 
+                (int)_config.ActiveScreenUpdateInterval.TotalMilliseconds;
 
             if (updateTimer.Interval != newInterval)
             {

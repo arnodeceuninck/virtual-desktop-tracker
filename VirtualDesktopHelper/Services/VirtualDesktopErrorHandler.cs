@@ -66,7 +66,7 @@ namespace VirtualDesktopHelper.Services
 
         public T ExecuteWithRetry<T>(Func<T> action, string operationName, int maxRetries = 3, TimeSpan? delay = null)
         {
-            var retryDelay = delay ?? TimeSpan.FromMilliseconds(_config.RetryDelayMs);
+            var retryDelay = delay ?? _config.RetryDelay;
             var attempts = 0;
             Exception? lastException = null;
 
