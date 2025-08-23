@@ -219,20 +219,20 @@ namespace VirtualDesktopTracker
 
 				Console.WriteLine($"Found {usageHistory.Count} usage entries for {targetDate:yyyy-MM-dd}");
 
-				// Generate the report
-				string report = reportGenerator.GenerateReport(usageHistory);
+				// Also save to file and generate JSON
+				string reportFileName = $"usage_report_{targetDate:yyyy-MM-dd}.txt";
+				string reportPath = Path.Combine(usageTracker.GetLogDirectory(), reportFileName);
+				
+				// Generate both text and JSON reports
+				string report = await reportGenerator.GenerateReportWithJsonAsync(usageHistory, reportPath);
 				
 				Console.WriteLine();
 				Console.WriteLine("=== USAGE REPORT ===");
 				Console.WriteLine(report);
 
-				// Also save to file
-				string reportFileName = $"usage_report_{targetDate:yyyy-MM-dd}.txt";
-				string reportPath = Path.Combine(usageTracker.GetLogDirectory(), reportFileName);
-				
-				await File.WriteAllTextAsync(reportPath, report);
 				Console.WriteLine();
-				Console.WriteLine($"Report saved to: {reportPath}");
+				Console.WriteLine($"Text report saved to: {reportPath}");
+				Console.WriteLine($"JSON report saved to: {Path.ChangeExtension(reportPath, ".json")}");
 			}
 			catch (Exception ex)
 			{
