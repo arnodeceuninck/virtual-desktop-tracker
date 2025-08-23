@@ -1,11 +1,13 @@
 using System;
 using System.Drawing;
 using System.IO;
+using System.Linq;
 using System.Windows.Forms;
 using VirtualDesktopDisplayer.Services;
 using VirtualDesktopHelper;
 using VirtualDesktopHelper.Configuration;
 using VirtualDesktopHelper.Interfaces;
+using VirtualDesktopHelper.Services;
 
 namespace VirtualDesktopDisplayer
 {
@@ -288,6 +290,7 @@ namespace VirtualDesktopDisplayer
 
             contextMenu.Items.Add("View Usage Log", null, OnViewUsageLogClick);
             contextMenu.Items.Add("Generate Report", null, OnGenerateReportClick);
+            contextMenu.Items.Add("Copy JavaScript", null, OnCopyJavaScriptClick);
             contextMenu.Items.Add("Open Log Folder", null, OnOpenLogFolderClick);
             contextMenu.Items.Add(new ToolStripSeparator());
             contextMenu.Items.Add("Exit", null, (s, args) => _applicationService.ExitApplication());
@@ -400,6 +403,78 @@ namespace VirtualDesktopDisplayer
             catch (Exception ex)
             {
                 _applicationService.ShowError($"Error generating report: {ex.Message}");
+            }
+        }
+
+        private void OnCopyJavaScriptClick(object? sender, EventArgs e)
+        {
+            try
+            {
+                // Check if Timely configuration is set up
+                var timelyConfig = TimelyConfiguration.Instance;
+                if (!timelyConfig.IsConfigured())
+                {
+                    var result = MessageBox.Show(
+                        "Timely configuration is not set up. Would you like to configure it now?\n\n" +
+                        "You'll need to provide:\n" +
+                        "- CSRF Token (from browser network requests)\n" +
+                        "- Cookie String (from browser)\n" +
+                        "- Project ID and User ID (from Timely)\n\n" +
+                        "The configuration file will be created at:\n" +
+                        TimelyConfiguration.GetConfigFilePath(),
+                        "Timely Configuration Required",
+                        MessageBoxButtons.YesNo,
+                        MessageBoxIcon.Question);
+
+                    if (result == DialogResult.Yes)
+                    {
+                        ShowTimelyConfigurationDialog();
+                        return;
+                    }
+                    else
+                    {
+                        _applicationService.ShowInformation("Timely JavaScript generation cancelled.");
+                        return;
+                    }
+                }
+
+                // Generate the JavaScript
+                var generator = new TimelyJavaScriptGenerator(_config, timelyConfig);
+                var allEntries = _usageTracker.GetAllUsageHistory();
+                
+                if (!allEntries.Any())
+                {
+                    _applicationService.ShowInformation("No usage data available to generate Timely JavaScript.");
+                    return;
+                }
+
+                var javascript = generator.GenerateTimelyJavaScript(allEntries, currentDayOnly: true);
+
+                // Copy to clipboard
+                Clipboard.SetText(javascript);
+
+                // Show success message with instructions
+                _applicationService.ShowInformation(
+                    "Timely JavaScript has been copied to the clipboard!\n\n" +
+                    "Instructions:\n" +
+                    "1. Open your browser and navigate to Timely\n" +
+                    "2. Press F12 to open Developer Tools\n" +
+                    "3. Go to the Console tab\n" +
+                    "4. Paste the JavaScript and press Enter\n\n" +
+                    "Note: If you get authentication errors, you may need to update the CSRF token and cookies in the configuration.");
+            }
+            catch (Exception ex)
+            {
+                _applicationService.ShowError($"Error generating Timely JavaScript: {ex.Message}");
+            }
+        }
+
+        private void ShowTimelyConfigurationDialog()
+        {
+            var configForm = new TimelyConfigurationFormEnhanced();
+            if (configForm.ShowDialog() == DialogResult.OK)
+            {
+                _applicationService.ShowInformation("Timely configuration saved successfully!");
             }
         }
 
