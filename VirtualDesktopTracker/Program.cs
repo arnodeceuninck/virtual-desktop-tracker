@@ -2,7 +2,8 @@
 using System.Diagnostics;
 using System.IO;
 using System.Threading;
-using VirtualDesktopHelper;
+using VirtualDesktopHelper.Services;
+using VirtualDesktopHelper.Interfaces;
 
 namespace VirtualDesktopTracker
 {
@@ -15,8 +16,10 @@ namespace VirtualDesktopTracker
 		{
 			Console.WriteLine("Virtual Desktop Tracker Started");
 			Console.WriteLine("Press Ctrl+C to stop tracking...");
-			Console.WriteLine($"Log directory: {DesktopUsageTracker.GetLogDirectory()}");
-			Console.WriteLine($"Current log file: {Path.GetFileName(DesktopUsageTracker.GetUsageLogPath())}");
+			
+			var usageTracker = VirtualDesktopServiceProvider.GetUsageTracker();
+			Console.WriteLine($"Log directory: {usageTracker.GetLogDirectory()}");
+			Console.WriteLine($"Current log file: {Path.GetFileName(usageTracker.GetCurrentLogFilePath())}");
 			Console.WriteLine();
 
 			// Handle Ctrl+C gracefully
@@ -34,11 +37,15 @@ namespace VirtualDesktopTracker
 
 		static void TrackDesktopChanges()
 		{
+			var usageTracker = VirtualDesktopServiceProvider.GetUsageTracker();
+			var desktopNameService = VirtualDesktopServiceProvider.GetDesktopNameService();
+			var screenStateDetector = VirtualDesktopServiceProvider.GetScreenStateDetector();
+
 			while (_isRunning)
 			{
 				try
 				{
-					string currentDesktop = GetCurrentDesktopName();
+					string currentDesktop = GetCurrentDesktopName(desktopNameService, screenStateDetector);
 					
 					if (!string.IsNullOrEmpty(currentDesktop) && currentDesktop != _lastDesktopName)
 					{
@@ -62,7 +69,7 @@ namespace VirtualDesktopTracker
 						}
 
 						// Track the desktop usage (this automatically logs to file)
-						DesktopUsageTracker.TrackDesktopUsage(currentDesktop);
+						usageTracker.TrackDesktopUsage(currentDesktop);
 						_lastDesktopName = currentDesktop;
 					}
 
@@ -79,25 +86,25 @@ namespace VirtualDesktopTracker
 			}
 		}
 
-		static string GetCurrentDesktopName()
+		static string GetCurrentDesktopName(VirtualDesktopHelper.Interfaces.IWindowsDesktopNameService desktopNameService, VirtualDesktopHelper.Interfaces.IScreenStateDetector screenStateDetector)
 		{
 			try
 			{
 				// First check if screen is locked or off
-				if (ScreenStateDetector.IsScreenLockedOrOff())
+				if (screenStateDetector.IsScreenLockedOrOff())
 				{
 					return "Screen Off";
 				}
 
-				// Try using the subprocess method first
-				return DesktopNameProvider.GetCurrentDesktopNameUsingSubprocess();
+				// Get the current desktop name using the service
+				return desktopNameService.GetCurrentDesktopName();
 			}
 			catch
 			{
 				try
 				{
 					// Check screen state again before fallback
-					if (ScreenStateDetector.IsScreenLockedOrOff())
+					if (screenStateDetector.IsScreenLockedOrOff())
 					{
 						return "Screen Off";
 					}
@@ -108,7 +115,7 @@ namespace VirtualDesktopTracker
 				catch (Exception ex)
 				{
 					// If we still can't get desktop name, check if screen is off
-					if (ScreenStateDetector.IsScreenLockedOrOff())
+					if (screenStateDetector.IsScreenLockedOrOff())
 					{
 						return "Screen Off";
 					}
