@@ -354,6 +354,7 @@ namespace VirtualDesktopDisplayer
                 {
                     desktopLabel.Text = newName;
                     _lastDesktopName = newName;
+                    _usageTracker.TrackDesktopUsage(newName);
                 }
                 else
                 {
