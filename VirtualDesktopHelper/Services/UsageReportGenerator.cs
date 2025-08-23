@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 using VirtualDesktopHelper.Configuration;
+using VirtualDesktopHelper.Interfaces;
 using VirtualDesktopHelper.Models;
 
 namespace VirtualDesktopHelper.Services
@@ -13,10 +14,12 @@ namespace VirtualDesktopHelper.Services
     public class UsageReportGenerator
     {
         private readonly TrackerConfiguration _config;
+        private readonly IUsageConsolidationService _consolidationService;
 
-        public UsageReportGenerator(TrackerConfiguration? config = null)
+        public UsageReportGenerator(TrackerConfiguration? config = null, IUsageConsolidationService? consolidationService = null)
         {
             _config = config ?? TrackerConfiguration.Instance;
+            _consolidationService = consolidationService ?? new UsageConsolidationService(_config);
         }
 
         /// <summary>
@@ -41,8 +44,22 @@ namespace VirtualDesktopHelper.Services
                 return report.ToString();
             }
 
-            var groupedByDesktop = GroupByDesktop(filteredEntries);
-            var groupedByDate = GroupByDate(filteredEntries);
+            // Apply consolidation if enabled
+            var consolidatedEntries = _config.EnableActivityConsolidation 
+                ? _consolidationService.ConsolidateUsageEntries(filteredEntries)
+                : filteredEntries;
+
+            // Add consolidation info to report header
+            if (_config.EnableActivityConsolidation && consolidatedEntries.Count != filteredEntries.Count)
+            {
+                report.AppendLine($"Consolidation applied: {filteredEntries.Count} activities → {consolidatedEntries.Count} activities");
+                report.AppendLine($"Settings: Min duration = {_config.ConsolidationMinDurationMinutes}min, " +
+                                $"Custom max duration = {_config.CustomConsolidationMaxDurationMinutes}min");
+                report.AppendLine();
+            }
+
+            var groupedByDesktop = GroupByDesktop(consolidatedEntries);
+            var groupedByDate = GroupByDate(consolidatedEntries);
 
             BuildTotalTimeSection(report, groupedByDesktop);
             BuildDailyBreakdownSection(report, groupedByDate);

@@ -73,6 +73,33 @@ namespace VirtualDesktopHelper.Configuration
         public string VirtualDesktopExecutableName { get; set; } = "VirtualDesktop11.exe";
 
         /// <summary>
+        /// Minimum duration in minutes for an activity to be kept separate during consolidation.
+        /// Activities shorter than this will be merged with adjacent larger activities.
+        /// </summary>
+        public double ConsolidationMinDurationMinutes { get; set; } = 2.0;
+
+        /// <summary>
+        /// Maximum duration in minutes for desktop name based consolidation.
+        /// Desktop activities with names matching patterns and shorter than this duration will be consolidated.
+        /// </summary>
+        public double CustomConsolidationMaxDurationMinutes { get; set; } = 15.0;
+
+        /// <summary>
+        /// Whether to apply activity consolidation during report generation.
+        /// </summary>
+        public bool EnableActivityConsolidation { get; set; } = true;
+
+        /// <summary>
+        /// Whether to merge consecutive activities with the same desktop name.
+        /// </summary>
+        public bool EnableConsecutiveMerging { get; set; } = true;
+
+        /// <summary>
+        /// Whether to apply custom desktop name based consolidation rules.
+        /// </summary>
+        public bool EnableCustomConsolidation { get; set; } = true;
+
+        /// <summary>
         /// Gets the singleton instance of the configuration.
         /// </summary>
         public static TrackerConfiguration Instance { get; } = new TrackerConfiguration();
