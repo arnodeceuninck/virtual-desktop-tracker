@@ -47,8 +47,11 @@ namespace VirtualDesktopHelper.Services
                 throw new InvalidOperationException("Timely configuration is not properly set up. Please configure the Timely settings first.");
             }
 
+            // Ensure all entries have proper end times before processing
+            var entriesWithEndTime = EnsureEndTimesAreSet(allEntries);
+
             // Filter entries for current day if requested
-            var filteredEntries = currentDayOnly ? FilterCurrentDayEntries(allEntries) : allEntries;
+            var filteredEntries = currentDayOnly ? FilterCurrentDayEntries(entriesWithEndTime) : entriesWithEndTime;
             
             if (!filteredEntries.Any())
             {
@@ -77,18 +80,21 @@ namespace VirtualDesktopHelper.Services
         /// <returns>JavaScript code as a string.</returns>
         public async Task<string> GenerateTimelyJavaScriptFromReportAsync(List<DesktopUsageEntry> allEntries, bool currentDayOnly = true)
         {
+            // Ensure all entries have proper end times before processing
+            var entriesWithEndTime = EnsureEndTimesAreSet(allEntries);
+
             // Create a temporary JSON report
             var tempJsonPath = Path.GetTempFileName();
             try
             {
-                await GenerateTemporaryJsonReportAsync(allEntries, tempJsonPath, currentDayOnly);
+                await GenerateTemporaryJsonReportAsync(entriesWithEndTime, tempJsonPath, currentDayOnly);
                 
                 // Use the existing Python script to convert JSON to JavaScript
                 var pythonScriptPath = FindPythonScript();
                 if (string.IsNullOrEmpty(pythonScriptPath))
                 {
                     // Fallback to direct C# generation
-                    return GenerateTimelyJavaScript(allEntries, currentDayOnly);
+                    return GenerateTimelyJavaScript(entriesWithEndTime, currentDayOnly);
                 }
 
                 return await RunPythonScriptAsync(pythonScriptPath, tempJsonPath);
@@ -107,6 +113,29 @@ namespace VirtualDesktopHelper.Services
         {
             var today = DateTime.Today;
             return allEntries.Where(entry => entry.StartTime.Date == today).ToList();
+        }
+
+        /// <summary>
+        /// Ensures all entries have proper end times set. Sets EndTime to current time for any entries that are still active (EndTime = null).
+        /// </summary>
+        /// <param name="entries">The entries to process.</param>
+        /// <returns>A new list of entries with all EndTime values properly set.</returns>
+        private List<DesktopUsageEntry> EnsureEndTimesAreSet(List<DesktopUsageEntry> entries)
+        {
+            DateTime now = DateTime.Now;
+            var processedEntries = new List<DesktopUsageEntry>();
+
+            foreach (var entry in entries)
+            {
+                processedEntries.Add(new DesktopUsageEntry
+                {
+                    DesktopName = entry.DesktopName,
+                    StartTime = entry.StartTime,
+                    EndTime = entry.EndTime ?? now
+                });
+            }
+
+            return processedEntries;
         }
 
         private Dictionary<string, List<TimestampEntry>> GroupConsecutiveActivities(List<DesktopUsageEntry> entries)
@@ -130,7 +159,7 @@ namespace VirtualDesktopHelper.Services
                 desktopGroups[desktopName].Add(new TimestampEntry
                 {
                     From = entry.StartTime.ToString($"yyyy-MM-ddTHH:mm:ss.000{_timelyConfig.TimezoneOffset}"),
-                    To = (entry.EndTime ?? DateTime.Now).ToString($"yyyy-MM-ddTHH:mm:ss.000{_timelyConfig.TimezoneOffset}"),
+                    To = entry.EndTime.Value.ToString($"yyyy-MM-ddTHH:mm:ss.000{_timelyConfig.TimezoneOffset}"),
                     DurationMinutes = entry.Duration.TotalMinutes,
                     ProjectId = project.Id,
                     ProjectName = project.Name,

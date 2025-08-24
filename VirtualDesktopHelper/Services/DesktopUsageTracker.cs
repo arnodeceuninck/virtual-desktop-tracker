@@ -229,5 +229,44 @@ namespace VirtualDesktopHelper.Services
                 return null;
             }
         }
+
+        /// <summary>
+        /// Ends the current tracking session by setting the end time of any active entry.
+        /// Should be called when the application is shutting down.
+        /// </summary>
+        public void StopTracking()
+        {
+            lock (_lockObject)
+            {
+                DateTime now = DateTime.Now;
+
+                // Find the last active entry and close it
+                var lastEntry = _currentSessionUsageLog.LastOrDefault();
+                if (lastEntry != null && lastEntry.EndTime == null)
+                {
+                    lastEntry.EndTime = now;
+                    SaveCurrentSessionLog();
+                }
+            }
+        }
+
+        /// <summary>
+        /// Ensures all entries have proper end times before returning usage history.
+        /// This method sets the end time to current time for any entries that are still active (EndTime = null).
+        /// </summary>
+        /// <returns>List of usage entries with all end times properly set.</returns>
+        public List<DesktopUsageEntry> GetAllUsageHistoryWithClosedSessions()
+        {
+            var allEntries = GetAllUsageHistory();
+            DateTime now = DateTime.Now;
+
+            // Ensure all entries have end times set
+            foreach (var entry in allEntries.Where(e => e.EndTime == null))
+            {
+                entry.EndTime = now;
+            }
+
+            return allEntries.OrderBy(e => e.StartTime).ToList();
+        }
     }
 }

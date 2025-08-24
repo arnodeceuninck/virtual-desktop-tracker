@@ -85,10 +85,14 @@ namespace VirtualDesktopTracker
 				e.Cancel = true;
 				_isRunning = false;
 				Console.WriteLine("\nShutting down tracker...");
+				
+				// Ensure the last active session is properly closed
+				usageTracker.StopTracking();
+				Console.WriteLine("Last session closed. Tracker stopped.");
 			};
 
 			// Start tracking
-			TrackDesktopChanges();
+			TrackDesktopChanges(usageTracker);
 
 			Console.WriteLine("Tracker stopped.");
 		}
@@ -206,8 +210,8 @@ namespace VirtualDesktopTracker
 				var usageTracker = new DesktopUsageTracker();
 				var reportGenerator = new UsageReportGenerator(config);
 
-				// Get usage data for the specified date
-				var usageHistory = usageTracker.GetAllUsageHistory()
+				// Get usage data for the specified date with properly closed sessions
+				var usageHistory = usageTracker.GetAllUsageHistoryWithClosedSessions()
 					.Where(entry => entry.StartTime.Date == targetDate.Date)
 					.ToList();
 				
@@ -244,10 +248,9 @@ namespace VirtualDesktopTracker
 			}
 		}
 
-		static void TrackDesktopChanges()
+		static void TrackDesktopChanges(DesktopUsageTracker usageTracker)
 		{
 			var config = TrackerConfiguration.Instance;
-			var usageTracker = new DesktopUsageTracker();
 			var screenStateDetector = new WindowsScreenStateDetector();
 			var errorHandler = new VirtualDesktopErrorHandler(config);
 			var desktopNameService = new WindowsDesktopNameService(screenStateDetector, errorHandler);

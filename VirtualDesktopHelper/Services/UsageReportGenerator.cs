@@ -79,6 +79,13 @@ namespace VirtualDesktopHelper.Services
         /// <returns>Formatted report as a string.</returns>
         public async Task<string> GenerateReportWithJsonAsync(List<DesktopUsageEntry> allEntries, string reportFilePath, bool currentDayOnly = false)
         {
+            // Ensure all entries have proper end times before processing
+            DateTime now = DateTime.Now;
+            foreach (var entry in allEntries.Where(e => e.EndTime == null))
+            {
+                entry.EndTime = now;
+            }
+
             // Generate text report using existing method
             var textReport = GenerateReport(allEntries, currentDayOnly);
             
