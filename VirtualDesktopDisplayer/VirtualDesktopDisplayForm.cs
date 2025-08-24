@@ -288,6 +288,8 @@ namespace VirtualDesktopDisplayer
         {
             var contextMenu = new ContextMenuStrip();
 
+            contextMenu.Items.Add("Working Hours Estimation", null, OnWorkingHoursEstimationClick);
+            contextMenu.Items.Add(new ToolStripSeparator());
             contextMenu.Items.Add("View Log JSON", null, OnViewUsageLogClick);
             contextMenu.Items.Add("Open Log Folder", null, OnOpenLogFolderClick);
             contextMenu.Items.Add(new ToolStripSeparator());
@@ -407,6 +409,30 @@ namespace VirtualDesktopDisplayer
             catch (Exception ex)
             {
                 _applicationService.ShowError($"Error generating report: {ex.Message}");
+            }
+        }
+
+        private void OnWorkingHoursEstimationClick(object? sender, EventArgs e)
+        {
+            try
+            {
+                var estimationService = new WorkingHoursEstimationService(_config);
+                var allEntries = _usageTracker.GetAllUsageHistory();
+                var estimation = estimationService.EstimateWorkingHours(allEntries);
+
+                string title = $"Working Hours Estimation - {estimation.Date:yyyy-MM-dd}";
+                string message = estimation.Message;
+
+                if (estimation.EstimatedFinishTime.HasValue)
+                {
+                    message += $"\n\n🕐 Estimated finish time: {estimation.EstimatedFinishTime.Value:HH:mm}";
+                }
+
+                _applicationService.ShowInformation(message, title);
+            }
+            catch (Exception ex)
+            {
+                _applicationService.ShowError($"Error estimating working hours: {ex.Message}");
             }
         }
 
