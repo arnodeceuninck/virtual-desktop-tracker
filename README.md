@@ -42,6 +42,17 @@ Configure automatic project detection based on desktop name keywords.
 Seamlessly upload your tracked time data to Timely.
 ![Upload to timely](img/upload-to-timely.png)
 
+## Useful virtual desktop shortcuts
+New to Windows Virtual Desktops? I use them often, to easily switch between projects and only having the windows relevant for that project on my desktop.
+
+Here are some shortcuts I often use:
+- `Ctrl`+`Win`+`->`: Go to desktop to the right
+- `Ctrl`+`Win`+`<-`: Go to desktop to the left
+- `Ctrl`+`Win`+`D`: Make new desktop
+- `Ctrl`+`Win`+`F4`: Close current desktop (and move open windows to the previous desktop)
+- `Win`+`Tab`: Overview of windows open on current desktop (Task view)
+
+From the task view, you can also set some windows to be always visible on all desktops. Right click on an entry and press "Show windows from this app on all desktops". I recommend this for this VirtualDesktopDisplayer (otherwise, you'll only see it on one desktop), teams and outlook. 
 
 ## 📁 Project Structure
 
@@ -225,3 +236,6 @@ This project is licensed under the MIT License - see the individual component li
 
 **Failed to rename desktop, please try again**
 - Ensure the correct VirtualDesktop executable for your Windows version is configured in `TrackerConfiguration.cs`. You might need `VirtualDesktop11-24H2.exe` instead of `VirtualDesktop11.exe`.
+
+**Program only visible on the initial desktop**
+- From the task view (`Win`+`Tab`), right click on the VirtualDesktopDisplayer and click on "Show Windows from this app on all desktops"
