@@ -13,6 +13,16 @@
 			"console": "integratedTerminal",
 			"cwd": "${workspaceFolder}",
 			"preLaunchTask": "build"
+		},
+		{
+			"name": "VirtualDesktopDisplayer",
+			"type": "coreclr",
+			"request": "launch",
+			"program": "${workspaceFolder}/VirtualDesktopDisplayer/bin/Debug/net9.0-windows/VirtualDesktopDisplayer.dll",
+			"args": [],
+			"console": "integratedTerminal",
+			"cwd": "${workspaceFolder}",
+			"preLaunchTask": "build"
 		}
 	]
 }

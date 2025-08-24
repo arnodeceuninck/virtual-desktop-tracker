@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Text.Json;
+using System.Text.Json.Serialization;
 
 namespace VirtualDesktopHelper.Configuration
 {
@@ -54,9 +55,32 @@ namespace VirtualDesktopHelper.Configuration
             }
         }
 
+        /// <summary>
+        /// Private constructor for singleton pattern.
+        /// </summary>
         private ProjectConfiguration()
         {
             InitializeDefaultMappings();
+        }
+
+        /// <summary>
+        /// Public parameterless constructor for JSON deserialization.
+        /// </summary>
+        [JsonConstructor]
+        public ProjectConfiguration(List<ProjectMapping>? projectMappings = null, ProjectInfo? defaultProject = null)
+        {
+            ProjectMappings = projectMappings ?? new List<ProjectMapping>();
+            DefaultProject = defaultProject ?? new ProjectInfo 
+            { 
+                Id = 3572980, 
+                Name = "Afwezig" 
+            };
+
+            // Ensure we have default mappings if none exist
+            if (!ProjectMappings.Any())
+            {
+                InitializeDefaultMappings();
+            }
         }
 
         private void InitializeDefaultMappings()
@@ -100,21 +124,28 @@ namespace VirtualDesktopHelper.Configuration
                 string configPath = GetConfigFilePath();
                 if (File.Exists(configPath))
                 {
+                    Console.WriteLine($"Loading configuration from: {configPath}");
                     string json = File.ReadAllText(configPath);
-                    var config = JsonSerializer.Deserialize<ProjectConfiguration>(json);
+                    Console.WriteLine($"Configuration JSON length: {json.Length}");
+                    
+                    var options = new JsonSerializerOptions
+                    {
+                        PropertyNameCaseInsensitive = true,
+                        WriteIndented = true
+                    };
+                    
+                    var config = JsonSerializer.Deserialize<ProjectConfiguration>(json, options);
                     if (config != null)
                     {
-                        // Ensure we have default mappings if none exist
-                        if (!config.ProjectMappings.Any())
-                        {
-                            config.InitializeDefaultMappings();
-                        }
+                        Console.WriteLine("Configuration loaded successfully");
                         return config;
                     }
                 }
             }
             catch (Exception ex)
             {
+                Console.WriteLine($"Error loading project configuration: {ex.Message}");
+                Console.WriteLine($"Stack trace: {ex.StackTrace}");
                 System.Diagnostics.Debug.WriteLine($"Error loading project configuration: {ex.Message}");
             }
 
