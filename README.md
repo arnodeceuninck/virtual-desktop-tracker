@@ -17,29 +17,29 @@ The **VirtualDesktopDisplayer** is the main application that provides:
 ### Main Interface
 **Desktop Name Display**  
 The application shows the current virtual desktop name in an unobtrusive corner display.
-![Display current desktop name](img\display-current-desktop-name.png)
+![Display current desktop name](img/display-current-desktop-name.png)
 
 **Right-Click Context Menu**  
 Access all application features through a convenient context menu.
-![Right click options](img\right-click-options.png)
+![Right click options](img/right-click-options.png)
 
 **One-Click Desktop Renaming**  
 Quickly rename virtual desktops
-![One-click rename virtual desktops](img\one-click-renaming-virtual-desktops.png)
+![One-click rename virtual desktops](img/one-click-renaming-virtual-desktops.png)
 
 ### Configuration & Integration
 **Timely Configuration**  
 Set up the Timely integration with just a sample curl requests.
-![Get curl request](img\get-curl-request.png)
-![Automatic timely configuration based on curl](img\automatic-timely-configuration-based-on-curl-request.png)
+![Get curl request](img/get-curl-request.png)
+![Automatic timely configuration based on curl](img/automatic-timely-configuration-based-on-curl-request.png)
 
 **Project Detection Setup**  
 Configure automatic project detection based on desktop name keywords.
-![Project detection configuration based on keywords](img\project-config.png)
+![Project detection configuration based on keywords](img/project-config.png)
 
 **Timely Upload**  
 Seamlessly upload your tracked time data to Timely.
-![Upload to timely](img\upload-to-timely.png)
+![Upload to timely](img/upload-to-timely.png)
 
 
 ## 📁 Project Structure
