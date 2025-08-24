@@ -82,7 +82,7 @@ namespace VirtualDesktopDisplayer
             // Instructions
             lblCurlInstructions = new Label
             {
-                Text = "Simply paste a cURL request from your browser's Network tab:\n\n" +
+                Text = "Simply paste a cURL (cmd) request from your browser's Network tab:\n\n" +
                        "1. Open Timely in your browser and log in\n" +
                        "2. Open Developer Tools (F12) → Network tab\n" +
                        "3. Create a time entry manually in Timely\n" +
@@ -116,16 +116,6 @@ namespace VirtualDesktopDisplayer
             };
             btnParseCurl.Click += BtnParseCurl_Click;
             tabCurl.Controls.Add(btnParseCurl);
-
-            // Test button (for development)
-            var btnTest = new Button
-            {
-                Text = "Test with Sample",
-                Location = new Point(170, 410),
-                Size = new Size(120, 30)
-            };
-            btnTest.Click += BtnTest_Click;
-            tabCurl.Controls.Add(btnTest);
 
             // Status label
             lblCurlStatus = new Label
@@ -229,23 +219,6 @@ namespace VirtualDesktopDisplayer
             if (txtSocketId != null) txtSocketId.Text = _config.SocketId;
             if (txtCsrfToken != null) txtCsrfToken.Text = _config.CsrfToken;
             if (txtCookieString != null) txtCookieString.Text = _config.CookieString;
-        }
-
-        private void BtnTest_Click(object? sender, EventArgs e)
-        {
-            if (txtCurlRequest == null) return;
-
-            // Sample curl request for testing
-            string sampleCurl = @"curl ""https://app.timelyapp.com/946869/hours"" " +
-                @"-H ""accept: application/json"" " +
-                @"-H ""content-type: application/json"" " +
-                @"-b ""_ga=GA1.1.670192631.1696240092; time_format=24; ajs_user_id=arno.deceuninck@bankvanbreda.be"" " +
-                @"-H ""tl-socket-id: 231821.1020694"" " +
-                @"-H ""x-csrf-token: Mp-M_Ky6KuNj1T-p7moc408gkrXuW1t17U8xoiWzLlqmEXqwnbToYCpBrHoV4IbqX4BfeP5S0pRzll0HB7jZbg"" " +
-                @"--data-raw ""{\""event\"": {\""project_id\"": 3572980, \""user_id\"": 2190564}}""";
-
-            txtCurlRequest.Text = sampleCurl;
-            BtnParseCurl_Click(sender, e);
         }
 
         private void BtnParseCurl_Click(object? sender, EventArgs e)

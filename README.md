@@ -12,6 +12,36 @@ The **VirtualDesktopDisplayer** is the main application that provides:
 - **One-click Desktop Renaming**: Easily modify virtual desktop names with a single click
 - **Timely Integration**: Automatically sync your desktop usage data to Timely for seamless time tracking
 
+## 📸 Screenshots
+
+### Main Interface
+**Desktop Name Display**  
+The application shows the current virtual desktop name in an unobtrusive corner display.
+![Display current desktop name](img\display-current-desktop-name.png)
+
+**Right-Click Context Menu**  
+Access all application features through a convenient context menu.
+![Right click options](img\right-click-options.png)
+
+**One-Click Desktop Renaming**  
+Quickly rename virtual desktops
+![One-click rename virtual desktops](img\one-click-renaming-virtual-desktops.png)
+
+### Configuration & Integration
+**Timely Configuration**  
+Set up the Timely integration with just a sample curl requests.
+![Get curl request](img\get-curl-request.png)
+![Automatic timely configuration based on curl](img\automatic-timely-configuration-based-on-curl-request.png)
+
+**Project Detection Setup**  
+Configure automatic project detection based on desktop name keywords.
+![Project detection configuration based on keywords](img\project-config.png)
+
+**Timely Upload**  
+Seamlessly upload your tracked time data to Timely.
+![Upload to timely](img\upload-to-timely.png)
+
+
 ## 📁 Project Structure
 
 ```
