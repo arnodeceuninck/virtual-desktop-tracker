@@ -603,6 +603,18 @@ namespace VirtualDesktopDisplayer
                             }
 
                             _applicationService.ShowError(errorMessage);
+
+                            // Add a button to reconfigure Timely on error
+                            var reconfigureResult = MessageBox.Show(
+                                "Would you like to reconfigure Timely settings to attempt to resolve the issue?",
+                                "Reconfigure Timely",
+                                MessageBoxButtons.YesNo,
+                                MessageBoxIcon.Question);
+
+                            if (reconfigureResult == DialogResult.Yes)
+                            {
+                                ShowTimelyConfigurationDialog();
+                            }
                         }
                     }
                 }
