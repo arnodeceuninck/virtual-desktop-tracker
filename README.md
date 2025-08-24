@@ -221,3 +221,6 @@ This project is licensed under the MIT License - see the individual component li
 **Desktop name shows as "Error: ..."**
 - Ensure the VirtualDesktop folder is cloned in the correct location
 - Verify that VirtualDesktop11.exe exists and is executable
+
+**Failed to rename desktop, please try again**
+- Ensure the correct VirtualDesktop executable for your Windows version is configured in `TrackerConfiguration.cs`. You might need `VirtualDesktop11-24H2.exe` instead of `VirtualDesktop11.exe`.
