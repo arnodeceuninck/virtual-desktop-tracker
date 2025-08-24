@@ -1,187 +1,193 @@
 # Virtual Desktop Tracker
 
-A comprehensive Windows virtual desktop monitoring and tracking application that displays the current active desktop name and tracks your virtual desktop usage over time.
+A comprehensive Windows application suite for tracking and managing virtual desktop usage throughout the day. The core functionality revolves around the **VirtualDesktopDisplayer**, which provides real-time virtual desktop monitoring with automatic time tracking and project detection capabilities.
 
-## Features
+## 🚀 Core Functionality
 
-### 🖥️ Real-time Desktop Display with Integrated Tracking
-- Shows the current active virtual desktop name in the lower-right corner of your screen
-- **Automatic usage tracking** - tracker functionality is now built directly into the displayer
-- Updates every 2 seconds to reflect desktop changes and optimize performance
-- Semi-transparent overlay that doesn't interfere with your work
-- Always stays on top for easy visibility
+The **VirtualDesktopDisplayer** is the main application that provides:
 
-### 📊 Smart Usage Tracking
-- **Intelligent change detection**: Only tracks actual desktop switches (no redundant logging)
-- **Desktop renaming detection**: Tracks desktop name changes
-- **Time-based logging**: Records precise start and end times for each desktop session
-- **Persistent storage**: Usage data is saved to JSON files in your Documents/VirtualDesktopLogs folder
-- **Session-based logging**: Each run creates a new timestamped log file, preserving all historical data
-- **Real-time logging**: Changes are written to log immediately when they occur
-- **Dual API support**: Uses both VirtualDesktop API and subprocess fallback for maximum reliability
+- **Real-time Desktop Display**: Shows the current virtual desktop name in an unobtrusive corner display that stays visible across all applications
+- **Automatic Time Tracking**: Tracks virtual desktop usage with detailed timestamps, duration metrics, and generates comprehensive JSON reports
+- **Smart Project Detection**: Automatically detects and maps projects based on desktop name keywords
+- **One-click Desktop Renaming**: Easily modify virtual desktop names with a single click
+- **Timely Integration**: Automatically sync your desktop usage data to Timely for seamless time tracking
 
-### 📈 Usage Reports
-- **Detailed reports**: Generate comprehensive usage reports showing:
-  - Total time spent on each desktop across all sessions
-  - Daily usage breakdown with timeline
-  - Duration formatting (hours, minutes, seconds)
-- **Historical data**: Reports include data from all previous tracking sessions
-- **Multiple file formats**: 
-  - Individual timestamped JSON log files for each session (`VirtualDesktopUsage_YYYY-MM-DD_HH-mm-ss.json`)
-  - Human-readable text report aggregating all data (`VirtualDesktopUsageReport.txt`)
+## 📁 Project Structure
 
-### 🎛️ Interactive Controls
-- **Right-click menu** with options to:
-  - View usage log
-  - Generate usage report
-  - Open log folder
-  - Exit application
-- **Double-click to exit**
+```
+virtual-desktop-tracker/
+├── VirtualDesktopDisplayer/          # Main GUI application
+├── VirtualDesktopTracker/            # Console application for tracking
+├── VirtualDesktopHelper/             # Core library with shared functionality
+├── VirtualDesktopHelper.Tests/      # Unit tests
+├── VirtualDesktop/                   # External dependency (MScholtes/VirtualDesktop)
+├── run-displayer.bat                # Quick start script
+└── Run-VirtualDesktopDisplayer.bat  # Alternative launcher
+```
 
-## Quick Start
+## 🛠️ Prerequisites
 
-### Running the Desktop Tracker (Recommended)
-```batch
-# Start the integrated tracker and displayer (recommended)
-run-displayer.bat
+### Required Dependencies
 
-# Or use the direct launcher
-Run-VirtualDesktopDisplayer.bat
+1. **Clone the VirtualDesktop library** in the same directory:
+   ```bash
+   git clone https://github.com/MScholtes/VirtualDesktop.git
+   ```
+   Compile the VirtualDesktop project for your Windows version:
+   ```bash
+   cd VirtualDesktop
+   C:\Windows\Microsoft.NET\Framework\v4.0.30319\csc.exe VirtualDesktop11.cs
+   ```
 
-# Or run directly from source
+2. **System Requirements**:
+   - Windows 10/11 with Virtual Desktop support
+   - .NET 9.0 or later
+
+### Directory Structure
+After cloning, your directory should look like:
+```
+your-project-folder/
+├── virtual-desktop-tracker/    # This repository
+└── VirtualDesktop/            # MScholtes' VirtualDesktop repository
+```
+
+## 🚀 Quick Start
+
+### Method 1: Using Batch File
+```bash
+# Run the main application
+.\run-displayer.bat
+```
+
+### Method 2: Build and Run
+```bash
+# Build the solution
+dotnet build
+
+# Run the displayer
 cd VirtualDesktopDisplayer
 dotnet run
 ```
 
-### Console-Only Tracking (Advanced)
-```batch
-# Start console-only tracking (for debugging or headless operation)
-run-tracker.bat
-
-# Or run directly
-cd VirtualDesktopTracker
-dotnet run
+### Method 3: Run Pre-built Executable
+```bash
+cd VirtualDesktopDisplayer\bin\Debug\net9.0-windows
+.\VirtualDesktopDisplayer.exe
 ```
 
-### Viewing Usage Data
-```batch
-# View usage statistics in console (includes all historical data)
-view-usage.bat
+## 💡 How to Use
 
-# Open usage files and log directory
-open-usage-files.bat
+1. **Start the Application**: Use any of the methods above to launch the VirtualDesktopDisplayer
+
+2. **Desktop Display**: You'll see the current virtual desktop name appear in the bottom-right corner of your screen
+
+3. **Automatic Tracking**: The application automatically starts tracking your desktop usage in the background
+
+4. **Rename Desktops**: Click on the desktop name display to quickly rename your virtual desktop
+
+5. **View Reports**: Right-click on the display for options to:
+   - View usage logs
+   - Generate reports
+   - Open log folder
+   - Configure settings
+   - Exit application
+
+6. **Exit**: Double-click the display or right-click → Exit
+
+## 📊 Usage Reports
+
+The application generates detailed JSON reports with information like:
+
+```json
+{
+  "GeneratedAt": "2025-08-24 10:30:00",
+  "TotalActivities": 15,
+  "Activities": [
+    {
+      "DesktopName": "Development Work",
+      "StartTime": "2025-08-24 09:00:00",
+      "EndTime": "2025-08-24 10:15:00",
+      "DurationFormatted": "1h 15m",
+      "Date": "2025-08-24"
+    }
+  ]
+}
 ```
 
-## File Structure
+Reports are automatically saved to the `VirtualDesktopLogs` directory in your Documents folder. 
 
-```
-virtual-desktop-tracker/
-├── VirtualDesktopDisplayer/     # Main GUI application with integrated tracker
-│   ├── Form1.cs                 # Main form with tracker logic
-│   ├── VirtualDesktop11-24H2.cs # VirtualDesktop API
-│   └── VirtualDesktopDisplayer.csproj
-├── VirtualDesktopHelper/        # Core tracking and desktop detection library
-├── DesktopUsageViewer/         # Console app for viewing usage data
-├── VirtualDesktopTracker/      # Console tracking application (standalone)
-├── VirtualDesktop/             # Original VirtualDesktop.exe binaries
-├── run-displayer.bat           # Start the integrated GUI tracker (recommended)
-├── Run-VirtualDesktopDisplayer.bat # Alternative launcher
-├── run-tracker.bat             # Start standalone console tracker
-├── view-usage.bat              # View usage statistics
-└── open-usage-files.bat        # Open usage files and directory
+## ⚙️ Configuration
+
+### Project Detection
+Configure automatic project detection by editing keywords in the project configuration:
+
+```csharp
+// Example project mapping
+{
+  "Project": { "Id": 12345, "Name": "My Project" },
+  "Keywords": ["keyword1", "keyword2"]
+}
 ```
 
-## How It Works
+### Timely Integration
+Set up Timely integration for automatic time tracking by configuring:
+- API credentials
+- Workspace ID
+- Default project mappings
 
-The **VirtualDesktopDisplayer** now combines both display and tracking functionality:
+## 🏗️ Architecture
 
-1. **Desktop Detection**: Uses both VirtualDesktop API and subprocess fallback for maximum reliability
-2. **Intelligent Change Detection**: Only logs when desktop actually changes (eliminates duplicate entries)
-3. **Real-time Display**: Shows current desktop name while tracking usage
-4. **Session Tracking**: Records start/end times for each desktop session
-5. **Data Persistence**: Saves all tracking data to JSON files
-6. **Report Generation**: Creates formatted reports from tracking data
+### Components
 
-## Usage Data Files
+- **VirtualDesktopDisplayer**: Main WinForms GUI application
+- **VirtualDesktopTracker**: Console application for command-line usage
+- **VirtualDesktopHelper**: Core library containing:
+  - Desktop name detection
+  - Usage tracking services
+  - Project configuration
+  - Timely integration
+  - Screen state detection
 
-The application creates files in your Documents/VirtualDesktopLogs folder:
+### Key Services
 
-### VirtualDesktopUsage_YYYY-MM-DD_HH-mm-ss.json
-Each tracking session creates a new timestamped JSON file containing:
-- Desktop name
-- Start time (ISO format)
-- End time (ISO format, null if ongoing)
-- Calculated duration
+- `IWindowsDesktopNameService`: Retrieves current desktop names
+- `IDesktopUsageTracker`: Tracks and logs desktop usage
+- `IScreenStateDetector`: Detects screen lock/unlock events
+- `IUsageConsolidationService`: Consolidates and processes usage data
 
-Example: `VirtualDesktopUsage_2025-08-18_21-23-15.json`
+## 🧪 Testing
 
-### VirtualDesktopUsageReport.txt
-Human-readable report (generated in Documents folder) containing:
-- Total time per desktop across all sessions (sorted by usage)
-- Daily breakdown with timeline
-- Session-by-session details from all log files
-
-## Example Usage Report
-
-```
-Virtual Desktop Usage Report
-Generated: 2025-08-18 21:15:03
-==================================================
-
-Total Time Per Desktop:
-------------------------------
-Selene ACC Upgrade B: 27s
-Selene ACC Upgrade: 24s
-ACC uitrol: 2s
-GitHub application: 1s
-
-Daily Usage Breakdown:
-------------------------------
-
-2025-08-18:
-  21:14:06 - 21:14:17 : Selene ACC Upgrade (10s)
-  21:14:17 - 21:14:19 : ACC uitrol (2s)
-  21:14:19 - 21:14:21 : Selene ACC Upgrade (1s)
-  21:14:21 - 21:14:23 : GitHub application (1s)
-  21:14:23 - 21:14:36 : Selene ACC Upgrade (13s)
-  21:14:36 - ongoing : Selene ACC Upgrade B (27s)
+Run the test suite:
+```bash
+dotnet test
 ```
 
-## Technical Requirements
+The test suite includes:
+- Unit tests for all services
+- Integration tests for desktop detection
+- Performance tests for tracking accuracy
 
-- **Windows 11** (24H2 recommended)
-- **.NET 9.0** runtime
-- **Virtual Desktop feature** enabled in Windows
+## 🤝 Contributing
 
-## How It Works
+1. Fork the repository
+2. Create a feature branch (`git checkout -b feature/amazing-feature`)
+3. Commit your changes (`git commit -m 'Add amazing feature'`)
+4. Push to the branch (`git push origin feature/amazing-feature`)
+5. Open a Pull Request
 
-The **VirtualDesktopDisplayer** now combines both display and tracking functionality:
+## 📝 Dependencies
 
-1. **Desktop Detection**: Uses both VirtualDesktop API and subprocess fallback for maximum reliability
-2. **Intelligent Change Detection**: Only logs when desktop actually changes (eliminates duplicate entries)
-3. **Real-time Display**: Shows current desktop name while tracking usage
-4. **Session Tracking**: Records start/end times for each desktop session
-5. **Data Persistence**: Saves all tracking data to JSON files
-6. **Report Generation**: Creates formatted reports from tracking data
+- **External**: [MScholtes/VirtualDesktop](https://github.com/MScholtes/VirtualDesktop) - Provides the core Windows virtual desktop API access
+- **Internal**: .NET 9.0, Windows Forms, System.Text.Json
 
-## Building from Source
+## 📄 License
 
-```batch
-# Build all components
-dotnet build
+This project is licensed under the MIT License - see the individual component licenses for details.
 
-# Or build the main integrated application
-cd VirtualDesktopDisplayer && dotnet build
+## 🐛 Troubleshooting
 
-# Build other components individually
-cd VirtualDesktopHelper && dotnet build
-cd DesktopUsageViewer && dotnet build
-cd VirtualDesktopTracker && dotnet build  # standalone console version
-```
+### Common Issues
 
-## Privacy
-
-- All data is stored locally on your machine
-- No data is sent to external servers
-- Usage logs are stored in your Documents folder
-- You have full control over your tracking data
+**Desktop name shows as "Error: ..."**
+- Ensure the VirtualDesktop folder is cloned in the correct location
+- Verify that VirtualDesktop11.exe exists and is executable
