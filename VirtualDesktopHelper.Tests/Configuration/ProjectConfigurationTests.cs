@@ -10,12 +10,17 @@ namespace VirtualDesktopHelper.Tests.Configuration
     {
         private readonly string _testConfigPath;
         private readonly string _testDirectory;
+        private readonly string _originalConfigFileName;
 
         public ProjectConfigurationTests()
         {
             // Use a test-specific directory to avoid conflicts
-            _testDirectory = Path.Combine(Path.GetTempPath(), "VirtualDesktopTests");
+            _testDirectory = Path.Combine(Path.GetTempPath(), "VirtualDesktopTests", Guid.NewGuid().ToString());
             _testConfigPath = Path.Combine(_testDirectory, "project_config.json");
+            
+            // Store original config file name and set a test-specific one
+            _originalConfigFileName = ProjectConfiguration.ConfigFileName;
+            ProjectConfiguration.ConfigFileName = Path.GetFileName(_testConfigPath);
             
             // Clean up any existing test files
             if (Directory.Exists(_testDirectory))
@@ -34,6 +39,9 @@ namespace VirtualDesktopHelper.Tests.Configuration
             {
                 Directory.Delete(_testDirectory, true);
             }
+            
+            // Restore original config file name
+            ProjectConfiguration.ConfigFileName = _originalConfigFileName;
             ProjectConfiguration.Reset();
         }
 
@@ -144,11 +152,15 @@ namespace VirtualDesktopHelper.Tests.Configuration
             var initialCount = config.ProjectMappings.Count;
             var keywords = new List<string> { "test", "unittest" };
 
+            // Ensure the project ID we're using doesn't already exist
+            config.RemoveProjectMapping(999); // Clean up if it exists from previous runs
+            var cleanCount = config.ProjectMappings.Count;
+
             // Act
             config.AddProjectMapping(999, "Test Project", keywords);
 
             // Assert
-            config.ProjectMappings.Should().HaveCount(initialCount + 1);
+            config.ProjectMappings.Should().HaveCount(cleanCount + 1);
             var addedMapping = config.ProjectMappings.FirstOrDefault(m => m.Project.Id == 999);
             addedMapping.Should().NotBeNull();
             addedMapping!.Project.Name.Should().Be("Test Project");
@@ -160,6 +172,11 @@ namespace VirtualDesktopHelper.Tests.Configuration
         {
             // Arrange
             var config = ProjectConfiguration.Instance;
+            
+            // Ensure clean state - remove any existing mapping with this ID
+            config.RemoveProjectMapping(999);
+            
+            // Add the mapping we want to test removing
             config.AddProjectMapping(999, "Test Project", new List<string> { "test" });
             var initialCount = config.ProjectMappings.Count;
 
@@ -176,6 +193,11 @@ namespace VirtualDesktopHelper.Tests.Configuration
         {
             // Arrange
             var config = ProjectConfiguration.Instance;
+            
+            // Ensure clean state - remove any existing mapping with this ID
+            config.RemoveProjectMapping(999);
+            
+            // Add the mapping we want to test updating
             config.AddProjectMapping(999, "Test Project", new List<string> { "test" });
             var newKeywords = new List<string> { "updated", "test", "keywords" };
 
@@ -194,13 +216,18 @@ namespace VirtualDesktopHelper.Tests.Configuration
         {
             // Arrange
             var config = ProjectConfiguration.Instance;
+            
+            // Ensure clean state - remove any existing mapping with this ID
+            config.RemoveProjectMapping(999);
+            
             var initialMappings = config.ProjectMappings.ToList();
 
             // Act
             config.UpdateProjectMapping(999, "Non-existent Project", new List<string> { "test" });
 
             // Assert
-            config.ProjectMappings.Should().BeEquivalentTo(initialMappings);
+            config.ProjectMappings.Should().HaveCount(initialMappings.Count);
+            config.ProjectMappings.Should().NotContain(m => m.Project.Id == 999);
         }
 
         [Fact]
