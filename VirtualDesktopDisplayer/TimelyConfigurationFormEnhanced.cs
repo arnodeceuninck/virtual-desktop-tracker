@@ -46,7 +46,7 @@ namespace VirtualDesktopDisplayer
         private void InitializeComponent()
         {
             this.Text = "Timely Configuration";
-            this.Size = new Size(700, 600);
+            this.Size = new Size(700, 650);
             this.StartPosition = FormStartPosition.CenterParent;
             this.MaximizeBox = false;
             this.MinimizeBox = false;

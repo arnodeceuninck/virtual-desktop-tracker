@@ -49,7 +49,7 @@ namespace VirtualDesktopDisplayer
             // Default project section
             _defaultProjectGroup = new GroupBox
             {
-                Text = "Default Project (when no keywords match)",
+                Text = "Default Project",
                 Height = 120
             };
 
