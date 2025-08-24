@@ -295,6 +295,7 @@ namespace VirtualDesktopDisplayer
             contextMenu.Items.Add("Configure Timely", null, OnConfigureTimelyClick);
             contextMenu.Items.Add("Configure Projects", null, OnConfigureProjectsClick);
             contextMenu.Items.Add("Copy Timely JavaScript", null, OnCopyJavaScriptClick);
+            contextMenu.Items.Add("Upload to Timely", null, OnUploadToTimelyClick);
             contextMenu.Items.Add(new ToolStripSeparator());
             contextMenu.Items.Add("Exit", null, (s, args) => _applicationService.ExitApplication());
 
@@ -469,6 +470,125 @@ namespace VirtualDesktopDisplayer
             catch (Exception ex)
             {
                 _applicationService.ShowError($"Error generating Timely JavaScript: {ex.Message}");
+            }
+        }
+
+        private async void OnUploadToTimelyClick(object? sender, EventArgs e)
+        {
+            try
+            {
+                // Check if Timely configuration is set up
+                var timelyConfig = TimelyConfiguration.Instance;
+                if (!timelyConfig.IsConfigured())
+                {
+                    var result = MessageBox.Show(
+                        "Timely configuration is not set up. Would you like to configure it now?\n\n" +
+                        "You'll need to provide:\n" +
+                        "- CSRF Token (from browser network requests)\n" +
+                        "- Cookie String (from browser)\n" +
+                        "- Project ID and User ID (from Timely)\n\n" +
+                        "The configuration file will be created at:\n" +
+                        TimelyConfiguration.GetConfigFilePath(),
+                        "Timely Configuration Required",
+                        MessageBoxButtons.YesNo,
+                        MessageBoxIcon.Question);
+
+                    if (result == DialogResult.Yes)
+                    {
+                        ShowTimelyConfigurationDialog();
+                        return;
+                    }
+                    else
+                    {
+                        _applicationService.ShowInformation("Timely upload cancelled.");
+                        return;
+                    }
+                }
+
+                // Get usage data
+                var allEntries = _usageTracker.GetAllUsageHistory();
+                
+                if (!allEntries.Any())
+                {
+                    _applicationService.ShowInformation("No usage data available to upload to Timely.");
+                    return;
+                }
+
+                // Confirm the upload action
+                var confirmResult = MessageBox.Show(
+                    "This will upload your usage data directly to Timely.\n\n" +
+                    "Are you sure you want to proceed?\n\n" +
+                    "Note: This will create time entries in your Timely workspace.",
+                    "Confirm Timely Upload",
+                    MessageBoxButtons.YesNo,
+                    MessageBoxIcon.Question);
+
+                if (confirmResult != DialogResult.Yes)
+                {
+                    return;
+                }
+
+                // Show progress message
+                var progressForm = new Form()
+                {
+                    Text = "Uploading to Timely",
+                    Size = new Size(300, 100),
+                    StartPosition = FormStartPosition.CenterParent,
+                    FormBorderStyle = FormBorderStyle.FixedDialog,
+                    MaximizeBox = false,
+                    MinimizeBox = false
+                };
+
+                var progressLabel = new Label()
+                {
+                    Text = "Uploading time entries to Timely...",
+                    Dock = DockStyle.Fill,
+                    TextAlign = ContentAlignment.MiddleCenter
+                };
+
+                progressForm.Controls.Add(progressLabel);
+                progressForm.Show();
+                Application.DoEvents(); // Ensure the form is displayed
+
+                try
+                {
+                    // Upload to Timely
+                    using (var timelyService = new TimelyApiService())
+                    {
+                        var uploadResult = await timelyService.UploadToTimelyAsync(allEntries, currentDayOnly: true);
+
+                        progressForm.Close();
+
+                        if (uploadResult.Success)
+                        {
+                            var successMessage = $"Successfully uploaded {uploadResult.SuccessCount} entries to Timely.";
+                            _applicationService.ShowInformation(successMessage);
+                        }
+                        else
+                        {
+                            var errorMessage = $"No entries were successfully uploaded ({uploadResult.FailureCount} failed)";
+                            if (uploadResult.Errors.Any())
+                            {
+                                errorMessage += "\n\nErrors:\n" + string.Join("\n", uploadResult.Errors.Take(10));
+                                if (uploadResult.Errors.Count > 10)
+                                {
+                                    errorMessage += $"\n... and {uploadResult.Errors.Count - 10} more errors";
+                                }
+                            }
+
+                            _applicationService.ShowError(errorMessage);
+                        }
+                    }
+                }
+                catch (Exception)
+                {
+                    progressForm.Close();
+                    throw; // Re-throw to be caught by outer catch block
+                }
+            }
+            catch (Exception ex)
+            {
+                _applicationService.ShowError($"Error uploading to Timely: {ex.Message}");
             }
         }
 

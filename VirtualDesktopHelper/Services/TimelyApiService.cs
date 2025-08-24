@@ -1,0 +1,365 @@
+using System;
+using System.Collections.Generic;
+using System.IO;
+using System.Linq;
+using System.Net.Http;
+using System.Text;
+using System.Text.Json;
+using System.Threading.Tasks;
+using VirtualDesktopHelper.Configuration;
+using VirtualDesktopHelper.Interfaces;
+using VirtualDesktopHelper.Models;
+
+namespace VirtualDesktopHelper.Services
+{
+    /// <summary>
+    /// Service for uploading time entries directly to Timely via HTTP API
+    /// </summary>
+    public class TimelyApiService : IDisposable
+    {
+        private readonly HttpClient _httpClient;
+        private readonly TimelyConfiguration _timelyConfig;
+        private readonly IUsageConsolidationService _consolidationService;
+        private readonly ProjectDetectionService _projectDetectionService;
+        private bool _disposed = false;
+
+        public TimelyApiService(IUsageConsolidationService? consolidationService = null)
+        {
+            _httpClient = new HttpClient();
+            _timelyConfig = TimelyConfiguration.Instance;
+            _consolidationService = consolidationService ?? new UsageConsolidationService();
+            _projectDetectionService = new ProjectDetectionService();
+            
+            ConfigureHttpClient();
+        }
+
+        private void ConfigureHttpClient()
+        {
+            // Set base headers exactly as shown in the example
+            _httpClient.DefaultRequestHeaders.Clear();
+            _httpClient.DefaultRequestHeaders.Add("accept", "application/json");
+            _httpClient.DefaultRequestHeaders.Add("accept-language", "en-US,en;q=0.9,nl;q=0.8");
+            _httpClient.DefaultRequestHeaders.Add("cache-control", "no-cache");
+            _httpClient.DefaultRequestHeaders.Add("origin", _timelyConfig.ApiBaseUrl);
+            _httpClient.DefaultRequestHeaders.Add("pragma", "no-cache");
+            _httpClient.DefaultRequestHeaders.Add("priority", "u=1, i");
+            _httpClient.DefaultRequestHeaders.Add("sec-ch-ua", "\"Not;A=Brand\";v=\"99\", \"Microsoft Edge\";v=\"139\", \"Chromium\";v=\"139\"");
+            _httpClient.DefaultRequestHeaders.Add("sec-ch-ua-mobile", "?0");
+            _httpClient.DefaultRequestHeaders.Add("sec-ch-ua-platform", "\"Windows\"");
+            _httpClient.DefaultRequestHeaders.Add("sec-fetch-dest", "empty");
+            _httpClient.DefaultRequestHeaders.Add("sec-fetch-mode", "same-origin");
+            _httpClient.DefaultRequestHeaders.Add("sec-fetch-site", "same-origin");
+            _httpClient.DefaultRequestHeaders.Add("user-agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/139.0.0.0 Safari/537.36 Edg/139.0.0.0");
+            
+            // Add authentication headers
+            if (!string.IsNullOrEmpty(_timelyConfig.CsrfToken))
+            {
+                _httpClient.DefaultRequestHeaders.Add("x-csrf-token", _timelyConfig.CsrfToken);
+            }
+            
+            if (!string.IsNullOrEmpty(_timelyConfig.SocketId))
+            {
+                _httpClient.DefaultRequestHeaders.Add("tl-socket-id", _timelyConfig.SocketId);
+            }
+            
+            if (!string.IsNullOrEmpty(_timelyConfig.CookieString))
+            {
+                _httpClient.DefaultRequestHeaders.Add("Cookie", _timelyConfig.CookieString);
+            }
+        }
+
+        /// <summary>
+        /// Uploads desktop usage data directly to Timely via API.
+        /// </summary>
+        /// <param name="allEntries">All desktop usage entries.</param>
+        /// <param name="currentDayOnly">If true, only uploads entries from the current day.</param>
+        /// <returns>Result of the upload operation.</returns>
+        public async Task<TimelyUploadResult> UploadToTimelyAsync(List<DesktopUsageEntry> allEntries, bool currentDayOnly = true)
+        {
+            var result = new TimelyUploadResult();
+            
+            try
+            {
+                // Check configuration
+                if (!_timelyConfig.IsConfigured())
+                {
+                    var error = "Timely configuration is incomplete. Please ensure CSRF token, cookies, and IDs are set.";
+                    result.Errors.Add(error);
+                    LogError(error);
+                    return result;
+                }
+
+                // Ensure all entries have proper end times
+                var entriesWithEndTime = EnsureEndTimesAreSet(allEntries);
+
+                // Filter entries for current day if requested
+                var filteredEntries = currentDayOnly ? FilterCurrentDayEntries(entriesWithEndTime) : entriesWithEndTime;
+
+                if (!filteredEntries.Any())
+                {
+                    var error = currentDayOnly ? "No usage data available for today." : "No usage data available.";
+                    result.Errors.Add(error);
+                    LogError(error);
+                    return result;
+                }
+
+                // Get target date
+                var targetDate = DateTime.Today;
+
+                // Consolidate entries first
+                var consolidatedEntries = _consolidationService.ConsolidateUsageEntries(filteredEntries);
+                
+                if (!consolidatedEntries.Any())
+                {
+                    var error = "No entries to upload after consolidation";
+                    result.Errors.Add(error);
+                    LogError(error);
+                    return result;
+                }
+
+                LogInfo($"Starting upload of {consolidatedEntries.Count} consolidated activities for {targetDate:yyyy-MM-dd}");
+
+                // Upload each individual activity (don't group by project - upload each desktop session separately)
+                foreach (var activity in consolidatedEntries)
+                {
+                    try
+                    {
+                        await UploadSingleActivity(activity, targetDate);
+                        result.SuccessCount++;
+                        LogInfo($"Successfully uploaded: {activity.DesktopName}");
+                    }
+                    catch (Exception ex)
+                    {
+                        var error = $"Failed to upload: {activity.DesktopName}";
+                        var detailedError = $"{error} - {ex.Message}";
+                        result.Errors.Add(error);
+                        LogError(detailedError, ex);
+                    }
+                }
+
+                LogInfo($"Upload completed. Success: {result.SuccessCount}, Failed: {result.FailureCount}");
+            }
+            catch (Exception ex)
+            {
+                var error = $"General upload error: {ex.Message}";
+                result.Errors.Add(error);
+                LogError(error, ex);
+            }
+            
+            return result;
+        }
+
+        private async Task UploadSingleActivity(DesktopUsageEntry activity, DateTime targetDate)
+        {
+            // Detect project for this activity's desktop
+            var project = _projectDetectionService.DetectProjectForEntry(activity);
+            
+            // Calculate duration - use EndTime if available, otherwise assume current time
+            var endTime = activity.EndTime ?? DateTime.Now;
+            var totalMinutes = (int)(endTime - activity.StartTime).TotalMinutes;
+            
+            if (totalMinutes <= 0)
+            {
+                throw new InvalidOperationException("No valid time duration found");
+            }
+
+            // Create timestamp for this activity
+            var timestamp = new
+            {
+                from = activity.StartTime.ToString("yyyy-MM-ddTHH:mm:ss.fff") + _timelyConfig.TimezoneOffset,
+                to = endTime.ToString("yyyy-MM-ddTHH:mm:ss.fff") + _timelyConfig.TimezoneOffset,
+                entry_ids = new int[0]
+            };
+
+            // Use the activity's desktop name as the note
+            var note = activity.DesktopName;
+
+            // Create the request payload matching the example format exactly
+            var eventData = new
+            {
+                @event = new
+                {
+                    day = targetDate.ToString("yyyy-MM-dd"),
+                    note = note,
+                    timer_state = "default",
+                    timer_started_on = 0,
+                    timer_stopped_on = 0,
+                    project_id = project.Id,
+                    forecast_id = (int?)null,
+                    label_ids = new int[0],
+                    user_ids = new int[0],
+                    entry_ids = new int[0],
+                    from = timestamp.from,
+                    to = timestamp.to,
+                    timestamps = new[] { timestamp },
+                    hours = totalMinutes / 60,
+                    minutes = totalMinutes % 60,
+                    seconds = 0,
+                    estimated_hours = 0,
+                    estimated_minutes = 0,
+                    sequence = 1,
+                    billable = false,
+                    context = new
+                    {
+                        interaction = "Timestamp Selection",
+                        view_context = "Calendar",
+                        memory_experience = "Old",
+                        memory_view = "Timeline",
+                        calendar_view = "Day",
+                        has_timer = false
+                    },
+                    state_id = (int?)null,
+                    billed = false,
+                    locked = false,
+                    locked_reason = (string?)null,
+                    external_links = new object[0],
+                    user_id = _timelyConfig.UserId
+                }
+            };
+
+            var json = JsonSerializer.Serialize(eventData, new JsonSerializerOptions
+            {
+                WriteIndented = false // Use compact JSON for API calls
+            });
+
+            var content = new StringContent(json, Encoding.UTF8, "application/json");
+            
+            var url = $"{_timelyConfig.ApiBaseUrl}/{_timelyConfig.WorkspaceId}/hours";
+            var referer = $"{_timelyConfig.ApiBaseUrl}/{_timelyConfig.WorkspaceId}/calendar/day?date={targetDate:yyyy-MM-dd}&multiUserMode=false";
+            
+            LogInfo($"Uploading to Timely: {note} ({totalMinutes} minutes) to project {project.Name} (ID: {project.Id})");
+            LogInfo($"Request URL: {url}");
+            LogInfo($"Request payload: {json}");
+            
+            var request = new HttpRequestMessage(HttpMethod.Post, url);
+            request.Headers.Add("referer", referer);
+            request.Content = content;
+            
+            var response = await _httpClient.SendAsync(request);
+            
+            if (!response.IsSuccessStatusCode)
+            {
+                var errorContent = await response.Content.ReadAsStringAsync();
+                LogError($"HTTP {response.StatusCode} error: {errorContent}");
+                throw new HttpRequestException($"HTTP {response.StatusCode}: {errorContent}");
+            }
+            
+            var responseContent = await response.Content.ReadAsStringAsync();
+            LogInfo($"Upload response: {responseContent}");
+        }
+
+        private List<DesktopUsageEntry> EnsureEndTimesAreSet(List<DesktopUsageEntry> entries)
+        {
+            DateTime now = DateTime.Now;
+            var processedEntries = new List<DesktopUsageEntry>();
+
+            foreach (var entry in entries)
+            {
+                processedEntries.Add(new DesktopUsageEntry
+                {
+                    DesktopName = entry.DesktopName,
+                    StartTime = entry.StartTime,
+                    EndTime = entry.EndTime ?? now
+                });
+            }
+
+            return processedEntries;
+        }
+
+        private List<DesktopUsageEntry> FilterCurrentDayEntries(List<DesktopUsageEntry> allEntries)
+        {
+            var today = DateTime.Today;
+            return allEntries.Where(entry => entry.StartTime.Date == today).ToList();
+        }
+
+        private void LogError(string message, Exception? exception = null)
+        {
+            try
+            {
+                var logEntry = $"[{DateTime.Now:yyyy-MM-dd HH:mm:ss}] ERROR: {message}";
+                if (exception != null)
+                {
+                    logEntry += $"\nException: {exception}";
+                }
+                logEntry += "\n";
+                
+                var logPath = GetErrorLogPath();
+                File.AppendAllText(logPath, logEntry);
+                
+                // Also write to debug output
+                System.Diagnostics.Debug.WriteLine($"TimelyApiService ERROR: {message}");
+                if (exception != null)
+                {
+                    System.Diagnostics.Debug.WriteLine($"Exception: {exception}");
+                }
+            }
+            catch
+            {
+                // Don't throw errors from logging
+                System.Diagnostics.Debug.WriteLine($"Failed to log error: {message}");
+            }
+        }
+
+        private void LogInfo(string message)
+        {
+            try
+            {
+                var logEntry = $"[{DateTime.Now:yyyy-MM-dd HH:mm:ss}] INFO: {message}\n";
+                var logPath = GetErrorLogPath(); // Using same log file for simplicity
+                File.AppendAllText(logPath, logEntry);
+                
+                // Also write to debug output
+                System.Diagnostics.Debug.WriteLine($"TimelyApiService INFO: {message}");
+            }
+            catch
+            {
+                // Don't throw errors from logging
+                System.Diagnostics.Debug.WriteLine($"Failed to log info: {message}");
+            }
+        }
+
+        private string GetErrorLogPath()
+        {
+            var documentsPath = Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments);
+            var logDir = Path.Combine(documentsPath, "VirtualDesktopLogs");
+            
+            if (!Directory.Exists(logDir))
+            {
+                Directory.CreateDirectory(logDir);
+            }
+            
+            return Path.Combine(logDir, "errors.log");
+        }
+
+        protected virtual void Dispose(bool disposing)
+        {
+            if (!_disposed)
+            {
+                if (disposing)
+                {
+                    _httpClient?.Dispose();
+                }
+                _disposed = true;
+            }
+        }
+
+        public void Dispose()
+        {
+            Dispose(disposing: true);
+            GC.SuppressFinalize(this);
+        }
+    }
+
+    /// <summary>
+    /// Result of a Timely upload operation
+    /// </summary>
+    public class TimelyUploadResult
+    {
+        public int SuccessCount { get; set; } = 0;
+        public List<string> Errors { get; set; } = new List<string>();
+        
+        public bool HasErrors => Errors.Any();
+        public int FailureCount => Errors.Count;
+        public bool Success => !HasErrors && SuccessCount > 0;
+    }
+}
