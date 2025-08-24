@@ -29,6 +29,15 @@ namespace VirtualDesktopTracker
 					return 0;
 				}
 
+				// Check if this is a working hours estimation request
+				if (args.Length > 0 && (args[0].Equals("hours", StringComparison.OrdinalIgnoreCase) || 
+				                        args[0].Equals("--hours", StringComparison.OrdinalIgnoreCase) || 
+				                        args[0].Equals("-w", StringComparison.OrdinalIgnoreCase)))
+				{
+					await EstimateWorkingHoursFromArgs(args);
+					return 0;
+				}
+
 				// Show help if requested
 				if (args.Length > 0 && (args[0].Equals("--help", StringComparison.OrdinalIgnoreCase) || 
 				                        args[0].Equals("-h", StringComparison.OrdinalIgnoreCase) ||
@@ -56,6 +65,7 @@ namespace VirtualDesktopTracker
 			Console.WriteLine("Usage:");
 			Console.WriteLine("  VirtualDesktopTracker                     Start desktop tracking");
 			Console.WriteLine("  VirtualDesktopTracker report [options]    Generate usage report");
+			Console.WriteLine("  VirtualDesktopTracker hours [options]     Estimate working hours");
 			Console.WriteLine("  VirtualDesktopTracker help                Show this help");
 			Console.WriteLine();
 			Console.WriteLine("Report Options:");
@@ -64,10 +74,15 @@ namespace VirtualDesktopTracker
 			Console.WriteLine("  --min-duration <minutes>      Minimum activity duration to keep (default: 2.0)");
 			Console.WriteLine("  --max-duration <minutes>      Max duration for custom consolidation (default: 15.0)");
 			Console.WriteLine();
+			Console.WriteLine("Working Hours Options:");
+			Console.WriteLine("  --date <YYYY-MM-DD>           Estimate hours for specific date (default: today)");
+			Console.WriteLine();
 			Console.WriteLine("Examples:");
 			Console.WriteLine("  VirtualDesktopTracker report --date 2025-08-22");
 			Console.WriteLine("  VirtualDesktopTracker report --date 2025-08-22 --consolidate false");
 			Console.WriteLine("  VirtualDesktopTracker report --min-duration 5.0 --max-duration 20.0");
+			Console.WriteLine("  VirtualDesktopTracker hours");
+			Console.WriteLine("  VirtualDesktopTracker hours --date 2025-08-22");
 		}
 
 		static void StartTracking()
@@ -246,6 +261,120 @@ namespace VirtualDesktopTracker
 					Console.WriteLine($"Inner exception: {ex.InnerException.Message}");
 				}
 			}
+		}
+
+		static async Task EstimateWorkingHoursFromArgs(string[] args)
+		{
+			DateTime targetDate = DateTime.Today;
+
+			// Parse command line arguments
+			for (int i = 1; i < args.Length; i++)
+			{
+				switch (args[i].ToLower())
+				{
+					case "--date":
+					case "-d":
+						if (i + 1 < args.Length)
+						{
+							if (DateTime.TryParseExact(args[i + 1], "yyyy-MM-dd", CultureInfo.InvariantCulture, DateTimeStyles.None, out DateTime parsedDate))
+							{
+								targetDate = parsedDate;
+								i++; // Skip the next argument as it's the date value
+							}
+							else
+							{
+								Console.WriteLine($"Invalid date format: {args[i + 1]}. Use YYYY-MM-DD format.");
+								return;
+							}
+						}
+						break;
+
+					default:
+						Console.WriteLine($"Unknown option: {args[i]}");
+						ShowHelp();
+						return;
+				}
+			}
+
+			await EstimateWorkingHours(targetDate);
+		}
+
+		static async Task EstimateWorkingHours(DateTime targetDate)
+		{
+			try
+			{
+				Console.WriteLine($"Estimating working hours for {targetDate:yyyy-MM-dd}");
+				Console.WriteLine();
+
+				// Create usage tracker
+				var usageTracker = new DesktopUsageTracker();
+				var usageHistory = usageTracker.GetAllUsageHistory();
+
+				// Create working hours estimation service
+				var estimationService = new WorkingHoursEstimationService();
+				var estimation = estimationService.EstimateWorkingHours(usageHistory, targetDate);
+
+				// Display results
+				Console.WriteLine("=== WORKING HOURS ESTIMATION ===");
+				Console.WriteLine($"Date: {estimation.Date:yyyy-MM-dd}");
+				Console.WriteLine();
+				Console.WriteLine($"Total worked: {FormatHours(estimation.TotalWorkedHours)} / {FormatHours(7.33)} (7h 20m)");
+				Console.WriteLine($"Hours remaining: {FormatHours(estimation.HoursRemaining)}");
+				
+				if (estimation.LunchBreak != null)
+				{
+					Console.WriteLine($"Lunch break: {estimation.LunchBreak.StartTime:HH:mm} - {estimation.LunchBreak.EndTime:HH:mm} ({FormatTimeSpan(estimation.LunchBreak.Duration)})");
+				}
+				else
+				{
+					Console.WriteLine("Lunch break: Not detected (no Screen Off 20+ min between 11:45-13:15)");
+				}
+
+				if (estimation.EstimatedFinishTime.HasValue)
+				{
+					Console.WriteLine($"Estimated finish time: {estimation.EstimatedFinishTime.Value:HH:mm}");
+				}
+				
+				Console.WriteLine();
+				if (estimation.HoursRemaining <= 0)
+				{
+					Console.WriteLine("✅ You've completed your working hours for today!");
+				}
+				else
+				{
+					Console.WriteLine($"⏰ {FormatHours(estimation.HoursRemaining)} remaining to complete today's work");
+				}
+			}
+			catch (Exception ex)
+			{
+				Console.WriteLine($"Error estimating working hours: {ex.Message}");
+				if (ex.InnerException != null)
+				{
+					Console.WriteLine($"Inner exception: {ex.InnerException.Message}");
+				}
+			}
+		}
+
+		static string FormatHours(double hours)
+		{
+			var totalMinutes = (int)(hours * 60);
+			var h = totalMinutes / 60;
+			var m = totalMinutes % 60;
+			
+			if (h == 0) return $"{m}m";
+			if (m == 0) return $"{h}h";
+			return $"{h}h {m}m";
+		}
+
+		static string FormatTimeSpan(TimeSpan timeSpan)
+		{
+			var totalMinutes = (int)timeSpan.TotalMinutes;
+			var h = totalMinutes / 60;
+			var m = totalMinutes % 60;
+			
+			if (h == 0) return $"{m}m";
+			if (m == 0) return $"{h}h";
+			return $"{h}h {m}m";
 		}
 
 		static void TrackDesktopChanges(DesktopUsageTracker usageTracker)
