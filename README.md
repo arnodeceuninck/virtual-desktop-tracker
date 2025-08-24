@@ -25,6 +25,7 @@ Access all application features through a convenient context menu.
 
 **One-Click Desktop Renaming**  
 Quickly rename virtual desktops
+
 ![One-click rename virtual desktops](img/one-click-renaming-virtual-desktops.png)
 
 ### Configuration & Integration
