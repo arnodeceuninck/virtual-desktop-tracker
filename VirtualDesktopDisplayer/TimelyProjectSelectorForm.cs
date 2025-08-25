@@ -314,9 +314,10 @@ namespace VirtualDesktopDisplayer
 
         private void TreeProjects_AfterSelect(object? sender, TreeViewEventArgs e)
         {
+            var selectedProject = GetSelectedProject();
             if (btnSelect != null)
             {
-                btnSelect.Enabled = GetSelectedProject() != null;
+                btnSelect.Enabled = selectedProject != null;
             }
         }
 

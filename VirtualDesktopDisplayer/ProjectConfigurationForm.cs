@@ -25,6 +25,7 @@ namespace VirtualDesktopDisplayer
         private TextBox _defaultNameTextBox;
         private TextBox _defaultLabelIdsTextBox;
         private Button _selectDefaultProjectButton;
+        private Button _selectDefaultLabelsButton;
 
         public ProjectConfigurationForm()
         {
@@ -87,7 +88,16 @@ namespace VirtualDesktopDisplayer
             defaultPanel.Controls.Add(new Label { Text = "Label IDs:", Anchor = AnchorStyles.Left }, 0, 2);
             _defaultLabelIdsTextBox = new TextBox { Anchor = AnchorStyles.Left | AnchorStyles.Right };
             defaultPanel.Controls.Add(_defaultLabelIdsTextBox, 1, 2);
-            defaultPanel.Controls.Add(new Label(), 2, 2); // Empty cell
+            
+            _selectDefaultLabelsButton = new Button 
+            { 
+                Text = "Select Labels",
+                Anchor = AnchorStyles.Left | AnchorStyles.Right,
+                Height = 30,
+                Enabled = false
+            };
+            _selectDefaultLabelsButton.Click += SelectDefaultLabelsButton_Click;
+            defaultPanel.Controls.Add(_selectDefaultLabelsButton, 2, 2);
 
             defaultPanel.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 100));
             defaultPanel.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 60));
@@ -211,6 +221,9 @@ namespace VirtualDesktopDisplayer
             _defaultIdTextBox.Text = _projectConfig.DefaultProject.Id.ToString();
             _defaultNameTextBox.Text = _projectConfig.DefaultProject.Name;
             _defaultLabelIdsTextBox.Text = string.Join(", ", _projectConfig.DefaultProject.LabelIds);
+
+            // Enable label selection if we have a project
+            _selectDefaultLabelsButton.Enabled = _projectConfig.DefaultProject.Id > 0;
 
             // Load project mappings
             var dataSource = _projectConfig.ProjectMappings.Select(m => new ProjectMappingViewModel
@@ -336,6 +349,9 @@ namespace VirtualDesktopDisplayer
                     _defaultIdTextBox.Text = selectedProject.Id.ToString();
                     _defaultNameTextBox.Text = selectedProject.Name;
                     // Note: Label IDs would need to be set separately as they're not in the basic project info
+                    
+                    // Enable the labels button now that we have a project
+                    _selectDefaultLabelsButton.Enabled = true;
                 }
             }
             catch (Exception ex)
@@ -343,6 +359,95 @@ namespace VirtualDesktopDisplayer
                 MessageBox.Show($"Error retrieving projects: {ex.Message}",
                     "Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
             }
+        }
+
+        private async void SelectDefaultLabelsButton_Click(object? sender, EventArgs e)
+        {
+            try
+            {
+                // Get the current project ID
+                if (!long.TryParse(_defaultIdTextBox.Text, out long projectId) || projectId <= 0)
+                {
+                    MessageBox.Show(
+                        "Please select a project first before configuring labels.",
+                        "No Project Selected",
+                        MessageBoxButtons.OK,
+                        MessageBoxIcon.Warning);
+                    return;
+                }
+
+                var timelyConfig = TimelyConfiguration.Instance;
+                if (string.IsNullOrEmpty(timelyConfig.CookieString) || string.IsNullOrEmpty(timelyConfig.WorkspaceId))
+                {
+                    MessageBox.Show(
+                        "Timely configuration is required. Please configure Timely first.",
+                        "Configuration Required",
+                        MessageBoxButtons.OK,
+                        MessageBoxIcon.Information);
+                    return;
+                }
+
+                using (var labelService = new VirtualDesktopHelper.Services.TimelyLabelService())
+                {
+                    // Fetch detailed project information
+                    var projectDetails = await labelService.FetchProjectDetailsAsync(projectId);
+
+                    // Show label selector dialog
+                    using (var labelForm = new TimelyLabelSelectorForm(projectDetails))
+                    {
+                        // Pre-select any previously selected labels
+                        var currentLabelIds = ParseLabelIds(_defaultLabelIdsTextBox.Text);
+                        labelForm.SelectedLabelIds = new List<long>(currentLabelIds);
+
+                        if (labelForm.ShowDialog(this) == DialogResult.OK)
+                        {
+                            // Update the label IDs text box
+                            _defaultLabelIdsTextBox.Text = string.Join(", ", labelForm.SelectedLabelIds);
+
+                            var labelCount = labelForm.SelectedLabelIds.Count;
+                            var labelText = labelCount == 1 ? "label" : "labels";
+                            MessageBox.Show(
+                                $"Selected {labelCount} {labelText} for the default project.",
+                                "Labels Updated",
+                                MessageBoxButtons.OK,
+                                MessageBoxIcon.Information);
+                        }
+                    }
+                }
+            }
+            catch (UnauthorizedAccessException)
+            {
+                MessageBox.Show(
+                    "Authentication failed. Please update your Timely configuration with fresh authentication cookies.",
+                    "Authentication Error",
+                    MessageBoxButtons.OK,
+                    MessageBoxIcon.Error);
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show(
+                    $"Error loading project labels: {ex.Message}",
+                    "Error",
+                    MessageBoxButtons.OK,
+                    MessageBoxIcon.Error);
+            }
+        }
+
+        private List<long> ParseLabelIds(string labelIdsText)
+        {
+            var labelIds = new List<long>();
+            if (!string.IsNullOrWhiteSpace(labelIdsText))
+            {
+                var parts = labelIdsText.Split(',');
+                foreach (var part in parts)
+                {
+                    if (long.TryParse(part.Trim(), out long id))
+                    {
+                        labelIds.Add(id);
+                    }
+                }
+            }
+            return labelIds;
         }
     }
 
@@ -372,6 +477,7 @@ namespace VirtualDesktopDisplayer
         private TextBox _keywordsTextBox;
         private TextBox _labelIdsTextBox;
         private Button _selectProjectButton;
+        private Button _selectLabelsButton;
 
         public ProjectMappingEditForm()
         {
@@ -422,7 +528,16 @@ namespace VirtualDesktopDisplayer
             layout.Controls.Add(new Label { Text = "Label IDs:", Anchor = AnchorStyles.Left }, 0, 3);
             _labelIdsTextBox = new TextBox { Anchor = AnchorStyles.Left | AnchorStyles.Right };
             layout.Controls.Add(_labelIdsTextBox, 1, 3);
-            layout.Controls.Add(new Label(), 2, 3); // Empty cell
+            
+            _selectLabelsButton = new Button 
+            { 
+                Text = "Select Labels",
+                Anchor = AnchorStyles.Left | AnchorStyles.Right,
+                Height = 30,
+                Enabled = false
+            };
+            _selectLabelsButton.Click += SelectLabelsButton_Click;
+            layout.Controls.Add(_selectLabelsButton, 2, 3);
 
             var buttonPanel = new FlowLayoutPanel
             {
@@ -492,6 +607,9 @@ namespace VirtualDesktopDisplayer
                     _idTextBox.Text = selectedProject.Id.ToString();
                     _nameTextBox.Text = selectedProject.Name;
                     // Note: Label IDs would need to be set separately as they're not in the basic project info
+                    
+                    // Enable the labels button now that we have a project
+                    _selectLabelsButton.Enabled = true;
                 }
             }
             catch (Exception ex)
@@ -499,6 +617,95 @@ namespace VirtualDesktopDisplayer
                 MessageBox.Show($"Error retrieving projects: {ex.Message}",
                     "Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
             }
+        }
+
+        private async void SelectLabelsButton_Click(object? sender, EventArgs e)
+        {
+            try
+            {
+                // Get the current project ID
+                if (!long.TryParse(_idTextBox.Text, out long projectId) || projectId <= 0)
+                {
+                    MessageBox.Show(
+                        "Please select a project first before configuring labels.",
+                        "No Project Selected",
+                        MessageBoxButtons.OK,
+                        MessageBoxIcon.Warning);
+                    return;
+                }
+
+                var timelyConfig = TimelyConfiguration.Instance;
+                if (string.IsNullOrEmpty(timelyConfig.CookieString) || string.IsNullOrEmpty(timelyConfig.WorkspaceId))
+                {
+                    MessageBox.Show(
+                        "Timely configuration is required. Please configure Timely first.",
+                        "Configuration Required",
+                        MessageBoxButtons.OK,
+                        MessageBoxIcon.Information);
+                    return;
+                }
+
+                using (var labelService = new VirtualDesktopHelper.Services.TimelyLabelService())
+                {
+                    // Fetch detailed project information
+                    var projectDetails = await labelService.FetchProjectDetailsAsync(projectId);
+
+                    // Show label selector dialog
+                    using (var labelForm = new TimelyLabelSelectorForm(projectDetails))
+                    {
+                        // Pre-select any previously selected labels
+                        var currentLabelIds = ParseCurrentLabelIds();
+                        labelForm.SelectedLabelIds = new List<long>(currentLabelIds);
+
+                        if (labelForm.ShowDialog(this) == DialogResult.OK)
+                        {
+                            // Update the label IDs text box
+                            _labelIdsTextBox.Text = string.Join(", ", labelForm.SelectedLabelIds);
+
+                            var labelCount = labelForm.SelectedLabelIds.Count;
+                            var labelText = labelCount == 1 ? "label" : "labels";
+                            MessageBox.Show(
+                                $"Selected {labelCount} {labelText} for this project mapping.",
+                                "Labels Updated",
+                                MessageBoxButtons.OK,
+                                MessageBoxIcon.Information);
+                        }
+                    }
+                }
+            }
+            catch (UnauthorizedAccessException)
+            {
+                MessageBox.Show(
+                    "Authentication failed. Please update your Timely configuration with fresh authentication cookies.",
+                    "Authentication Error",
+                    MessageBoxButtons.OK,
+                    MessageBoxIcon.Error);
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show(
+                    $"Error loading project labels: {ex.Message}",
+                    "Error",
+                    MessageBoxButtons.OK,
+                    MessageBoxIcon.Error);
+            }
+        }
+
+        private List<long> ParseCurrentLabelIds()
+        {
+            var labelIds = new List<long>();
+            if (!string.IsNullOrWhiteSpace(_labelIdsTextBox.Text))
+            {
+                var parts = _labelIdsTextBox.Text.Split(',');
+                foreach (var part in parts)
+                {
+                    if (long.TryParse(part.Trim(), out long id))
+                    {
+                        labelIds.Add(id);
+                    }
+                }
+            }
+            return labelIds;
         }
     }
 }
