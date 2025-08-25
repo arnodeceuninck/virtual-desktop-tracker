@@ -54,7 +54,8 @@ namespace VirtualDesktopDisplayer
             _defaultProjectGroup = new GroupBox
             {
                 Text = "Default Project",
-                Height = 150
+                Height = 180,
+                Dock = DockStyle.Fill
             };
 
             var defaultPanel = new TableLayoutPanel
@@ -73,7 +74,7 @@ namespace VirtualDesktopDisplayer
             { 
                 Text = "Select from Timely",
                 Anchor = AnchorStyles.Left | AnchorStyles.Right,
-                Size = new Size(120, 23)
+                Height = 30
             };
             _selectDefaultProjectButton.Click += SelectDefaultProjectButton_Click;
             defaultPanel.Controls.Add(_selectDefaultProjectButton, 2, 0);
@@ -89,8 +90,8 @@ namespace VirtualDesktopDisplayer
             defaultPanel.Controls.Add(new Label(), 2, 2); // Empty cell
 
             defaultPanel.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 100));
-            defaultPanel.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 70));
-            defaultPanel.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 30));
+            defaultPanel.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 60));
+            defaultPanel.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 40));
 
             _defaultProjectGroup.Controls.Add(defaultPanel);
 
@@ -197,7 +198,7 @@ namespace VirtualDesktopDisplayer
             mainPanel.Controls.Add(gridPanel, 0, 1);
             mainPanel.Controls.Add(buttonPanel, 0, 2);
 
-            mainPanel.RowStyles.Add(new RowStyle(SizeType.Absolute, 160));
+            mainPanel.RowStyles.Add(new RowStyle(SizeType.Absolute, 190));
             mainPanel.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
             mainPanel.RowStyles.Add(new RowStyle(SizeType.Absolute, 60));
 
@@ -403,7 +404,7 @@ namespace VirtualDesktopDisplayer
             { 
                 Text = "Select from Timely",
                 Anchor = AnchorStyles.Left | AnchorStyles.Right,
-                Size = new Size(120, 23)
+                Height = 30
             };
             _selectProjectButton.Click += SelectProjectButton_Click;
             layout.Controls.Add(_selectProjectButton, 2, 0);
@@ -466,8 +467,8 @@ namespace VirtualDesktopDisplayer
             layout.Controls.Add(buttonPanel, 1, 4);
 
             layout.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 100));
-            layout.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 70));
-            layout.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 30));
+            layout.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 60));
+            layout.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 40));
 
             this.Controls.Add(layout);
         }

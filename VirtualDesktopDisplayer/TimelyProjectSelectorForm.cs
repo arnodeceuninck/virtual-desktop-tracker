@@ -43,7 +43,7 @@ namespace VirtualDesktopDisplayer
         private void InitializeComponent()
         {
             this.Text = "Select Timely Project";
-            this.Size = new Size(600, 500);
+            this.Size = new Size(620, 540);
             this.StartPosition = FormStartPosition.CenterParent;
             this.MaximizeBox = false;
             this.MinimizeBox = false;
