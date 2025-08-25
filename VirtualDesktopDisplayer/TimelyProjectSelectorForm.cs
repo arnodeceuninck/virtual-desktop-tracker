@@ -20,7 +20,7 @@ namespace VirtualDesktopDisplayer
 
         // UI Components
         private TextBox? txtSearch;
-        private ListBox? lstProjects;
+        private TreeView? treeProjects;
         private Button? btnRefresh;
         private Button? btnSelect;
         private Button? btnCancel;
@@ -52,7 +52,7 @@ namespace VirtualDesktopDisplayer
             // Instructions
             lblInstructions = new Label
             {
-                Text = "Search and select a project from your Timely workspace:",
+                Text = "Projects are grouped by client. Search and select a project from your Timely workspace:",
                 Location = new Point(12, 12),
                 Size = new Size(560, 20),
                 AutoSize = false
@@ -88,17 +88,21 @@ namespace VirtualDesktopDisplayer
             btnRefresh.Click += BtnRefresh_Click;
             this.Controls.Add(btnRefresh);
 
-            // Projects list
-            lstProjects = new ListBox
+            // Projects tree view
+            treeProjects = new TreeView
             {
                 Location = new Point(12, 75),
                 Size = new Size(558, 300),
-                DisplayMember = "DisplayNameWithClient",
-                Font = new Font("Segoe UI", 9)
+                Font = new Font("Segoe UI", 9),
+                ShowLines = true,
+                ShowPlusMinus = false,
+                ShowRootLines = false,
+                HideSelection = false,
+                FullRowSelect = true
             };
-            lstProjects.DoubleClick += LstProjects_DoubleClick;
-            lstProjects.SelectedIndexChanged += LstProjects_SelectedIndexChanged;
-            this.Controls.Add(lstProjects);
+            treeProjects.NodeMouseDoubleClick += TreeProjects_NodeMouseDoubleClick;
+            treeProjects.AfterSelect += TreeProjects_AfterSelect;
+            this.Controls.Add(treeProjects);
 
             // Progress bar
             progressBar = new ProgressBar
@@ -169,7 +173,8 @@ namespace VirtualDesktopDisplayer
                 }
                 else
                 {
-                    SetStatusMessage($"Loaded {_allProjects.Count} projects successfully.", Color.Green);
+                    var clientCount = _allProjects.GroupBy(p => p.Client?.Name ?? "No Client").Count();
+                    SetStatusMessage($"Loaded {_allProjects.Count} projects from {clientCount} clients successfully.", Color.Green);
                 }
             }
             catch (UnauthorizedAccessException ex)
@@ -198,7 +203,7 @@ namespace VirtualDesktopDisplayer
             if (progressBar != null) progressBar.Visible = isLoading;
             if (btnRefresh != null) btnRefresh.Enabled = !isLoading;
             if (txtSearch != null) txtSearch.Enabled = !isLoading;
-            if (lstProjects != null) lstProjects.Enabled = !isLoading;
+            if (treeProjects != null) treeProjects.Enabled = !isLoading;
             
             if (message != null && lblStatus != null)
             {
@@ -223,23 +228,54 @@ namespace VirtualDesktopDisplayer
 
         private void UpdateProjectsList()
         {
-            if (lstProjects == null) return;
+            if (treeProjects == null) return;
 
-            lstProjects.BeginUpdate();
-            lstProjects.Items.Clear();
+            treeProjects.BeginUpdate();
+            treeProjects.Nodes.Clear();
             
-            foreach (var project in _filteredProjects)
+            // Group projects by client name
+            var groupedProjects = _filteredProjects
+                .GroupBy(p => p.Client?.Name ?? "No Client")
+                .OrderBy(g => g.Key)
+                .ToList();
+
+            foreach (var group in groupedProjects)
             {
-                lstProjects.Items.Add(project);
+                // Create client node
+                var clientNode = new TreeNode(group.Key)
+                {
+                    Tag = null, // Client nodes don't have project data
+                    NodeFont = new Font(treeProjects.Font, FontStyle.Bold)
+                };
+
+                // Add projects under client
+                var sortedProjects = group.OrderBy(p => p.Name).ToList();
+                foreach (var project in sortedProjects)
+                {
+                    var projectNode = new TreeNode(project.Name)
+                    {
+                        Tag = project, // Store the project object in the tag
+                        NodeFont = new Font(treeProjects.Font, FontStyle.Regular)
+                    };
+                    clientNode.Nodes.Add(projectNode);
+                }
+
+                treeProjects.Nodes.Add(clientNode);
+                clientNode.Expand(); // Keep all groups expanded
             }
             
-            lstProjects.EndUpdate();
+            treeProjects.EndUpdate();
             
             // Update button state
             if (btnSelect != null)
             {
-                btnSelect.Enabled = lstProjects.SelectedIndex >= 0;
+                btnSelect.Enabled = GetSelectedProject() != null;
             }
+        }
+
+        private TimelyProject? GetSelectedProject()
+        {
+            return treeProjects?.SelectedNode?.Tag as TimelyProject;
         }
 
         private void FilterProjects()
@@ -251,17 +287,18 @@ namespace VirtualDesktopDisplayer
             
             UpdateProjectsList();
             
-            // Update status
+            // Update status with client group information
             var totalCount = _allProjects.Count;
             var filteredCount = _filteredProjects.Count;
+            var clientCount = _filteredProjects.GroupBy(p => p.Client?.Name ?? "No Client").Count();
             
             if (string.IsNullOrWhiteSpace(searchTerm))
             {
-                SetStatusMessage($"Showing all {totalCount} projects.", Color.Blue);
+                SetStatusMessage($"Showing all {totalCount} projects in {clientCount} client groups.", Color.Blue);
             }
             else
             {
-                SetStatusMessage($"Found {filteredCount} of {totalCount} projects matching '{searchTerm}'.", Color.Blue);
+                SetStatusMessage($"Found {filteredCount} projects in {clientCount} client groups matching '{searchTerm}'.", Color.Blue);
             }
         }
 
@@ -275,17 +312,17 @@ namespace VirtualDesktopDisplayer
             LoadProjectsAsync();
         }
 
-        private void LstProjects_SelectedIndexChanged(object? sender, EventArgs e)
+        private void TreeProjects_AfterSelect(object? sender, TreeViewEventArgs e)
         {
-            if (btnSelect != null && lstProjects != null)
+            if (btnSelect != null)
             {
-                btnSelect.Enabled = lstProjects.SelectedIndex >= 0;
+                btnSelect.Enabled = GetSelectedProject() != null;
             }
         }
 
-        private void LstProjects_DoubleClick(object? sender, EventArgs e)
+        private void TreeProjects_NodeMouseDoubleClick(object? sender, TreeNodeMouseClickEventArgs e)
         {
-            if (lstProjects?.SelectedItem is TimelyProject)
+            if (e.Node?.Tag is TimelyProject)
             {
                 BtnSelect_Click(sender, e);
             }
@@ -293,7 +330,8 @@ namespace VirtualDesktopDisplayer
 
         private void BtnSelect_Click(object? sender, EventArgs e)
         {
-            if (lstProjects?.SelectedItem is TimelyProject selectedProject)
+            var selectedProject = GetSelectedProject();
+            if (selectedProject != null)
             {
                 SelectedProject = selectedProject;
                 this.DialogResult = DialogResult.OK;
