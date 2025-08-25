@@ -209,11 +209,17 @@ namespace VirtualDesktopHelper.Configuration
         /// <param name="projectId">The project ID.</param>
         /// <param name="projectName">The project name.</param>
         /// <param name="keywords">Keywords that trigger this project.</param>
-        public void AddProjectMapping(long projectId, string projectName, List<string> keywords)
+        /// <param name="labelIds">Optional label IDs to apply to this project.</param>
+        public void AddProjectMapping(long projectId, string projectName, List<string> keywords, List<int>? labelIds = null)
         {
             var mapping = new ProjectMapping
             {
-                Project = new ProjectInfo { Id = projectId, Name = projectName },
+                Project = new ProjectInfo 
+                { 
+                    Id = projectId, 
+                    Name = projectName,
+                    LabelIds = labelIds ?? new List<int>()
+                },
                 Keywords = keywords
             };
 
@@ -237,13 +243,15 @@ namespace VirtualDesktopHelper.Configuration
         /// <param name="projectId">The project ID to update.</param>
         /// <param name="projectName">The new project name.</param>
         /// <param name="keywords">The new keywords.</param>
-        public void UpdateProjectMapping(long projectId, string projectName, List<string> keywords)
+        /// <param name="labelIds">The new label IDs.</param>
+        public void UpdateProjectMapping(long projectId, string projectName, List<string> keywords, List<int>? labelIds = null)
         {
             var mapping = ProjectMappings.FirstOrDefault(m => m.Project.Id == projectId);
             if (mapping != null)
             {
                 mapping.Project.Name = projectName;
                 mapping.Keywords = keywords;
+                mapping.Project.LabelIds = labelIds ?? new List<int>();
                 SaveConfiguration();
             }
         }
@@ -267,6 +275,12 @@ namespace VirtualDesktopHelper.Configuration
     {
         public long Id { get; set; }
         public string Name { get; set; } = "";
+        
+        /// <summary>
+        /// Optional label IDs to apply to time entries for this project.
+        /// If empty or null, no labels will be applied.
+        /// </summary>
+        public List<int> LabelIds { get; set; } = new List<int>();
 
         /// <summary>
         /// Returns a string representation of the project.
@@ -277,23 +291,25 @@ namespace VirtualDesktopHelper.Configuration
         }
 
         /// <summary>
-        /// Determines equality based on both Id and Name.
+        /// Determines equality based on Id, Name, and LabelIds.
         /// </summary>
         public override bool Equals(object? obj)
         {
             if (obj is ProjectInfo other)
             {
-                return Id == other.Id && Name == other.Name;
+                return Id == other.Id && 
+                       Name == other.Name && 
+                       LabelIds.SequenceEqual(other.LabelIds);
             }
             return false;
         }
 
         /// <summary>
-        /// Gets hash code based on Id and Name.
+        /// Gets hash code based on Id, Name, and LabelIds.
         /// </summary>
         public override int GetHashCode()
         {
-            return HashCode.Combine(Id, Name);
+            return HashCode.Combine(Id, Name, string.Join(",", LabelIds));
         }
     }
 

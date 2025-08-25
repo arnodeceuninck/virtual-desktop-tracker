@@ -134,7 +134,8 @@ namespace VirtualDesktopHelper.Services
                     DurationMinutes = entry.Duration.TotalMinutes,
                     ProjectId = project.Id,
                     ProjectName = project.Name,
-                    DesktopName = entry.DesktopName
+                    DesktopName = entry.DesktopName,
+                    LabelIds = project.LabelIds
                 });
             }
 
@@ -218,7 +219,7 @@ namespace VirtualDesktopHelper.Services
         private void GenerateSubmissionFunction(StringBuilder js, string targetDate)
         {
             js.AppendLine("// Function to make a Timely API request");
-            js.AppendLine("async function submitTimelyEntry(projectName, projectId, timestamps, totalMinutes) {");
+            js.AppendLine("async function submitTimelyEntry(projectName, projectId, timestamps, totalMinutes, labelIds = []) {");
             js.AppendLine("    const totalHours = Math.floor(totalMinutes / 60);");
             js.AppendLine("    const remainingMinutes = totalMinutes % 60;");
             js.AppendLine();
@@ -231,7 +232,7 @@ namespace VirtualDesktopHelper.Services
             js.AppendLine("            \"timer_stopped_on\": 0,");
             js.AppendLine("            \"project_id\": projectId,");
             js.AppendLine("            \"forecast_id\": null,");
-            js.AppendLine("            \"label_ids\": [],");
+            js.AppendLine("            \"label_ids\": labelIds,");
             js.AppendLine("            \"user_ids\": [],");
             js.AppendLine("            \"entry_ids\": [],");
             js.AppendLine("            \"from\": timestamps[0].from,");
@@ -323,9 +324,10 @@ namespace VirtualDesktopHelper.Services
                 int hours = (int)(totalMinutes / 60);
                 int minutes = (int)(totalMinutes % 60);
 
-                // Get project ID from the first timestamp entry (all should have the same project for a desktop)
+                // Get project ID and label IDs from the first timestamp entry (all should have the same project for a desktop)
                 long projectId = timestamps.FirstOrDefault()?.ProjectId ?? _timelyConfig.DefaultProjectId;
                 string projectName = timestamps.FirstOrDefault()?.ProjectName ?? "Unknown Project";
+                var labelIds = timestamps.FirstOrDefault()?.LabelIds ?? new List<int>();
 
                 js.AppendLine();
                 js.AppendLine($"    console.log('{desktopName} (Project: {projectName}): {hours}h {minutes}m');");
@@ -336,12 +338,14 @@ namespace VirtualDesktopHelper.Services
                 var timestampObjects = timestamps.Select(ts => 
                     $"{{\"from\": \"{ts.From}\", \"to\": \"{ts.To}\", \"entry_ids\": []}}");
                 string timestampsJs = "[" + string.Join(", ", timestampObjects) + "]";
+                string labelIdsJs = "[" + string.Join(", ", labelIds) + "]";
 
                 js.AppendLine("    await submitTimelyEntry(");
                 js.AppendLine($"        \"{desktopName}\","); // Use desktop name as the note
                 js.AppendLine($"        {projectId},");
                 js.AppendLine($"        {timestampsJs},");
-                js.AppendLine($"        {totalMinutes}");
+                js.AppendLine($"        {totalMinutes.ToString("F2", System.Globalization.CultureInfo.InvariantCulture)},");
+                js.AppendLine($"        {labelIdsJs}");
                 js.AppendLine("    );");
             }
         }
@@ -429,6 +433,7 @@ namespace VirtualDesktopHelper.Services
             public long ProjectId { get; set; }
             public string ProjectName { get; set; } = "";
             public string DesktopName { get; set; } = "";
+            public List<int> LabelIds { get; set; } = new List<int>();
         }
     }
 }

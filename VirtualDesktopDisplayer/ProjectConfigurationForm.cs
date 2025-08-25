@@ -21,6 +21,7 @@ namespace VirtualDesktopDisplayer
         private GroupBox _defaultProjectGroup;
         private TextBox _defaultIdTextBox;
         private TextBox _defaultNameTextBox;
+        private TextBox _defaultLabelIdsTextBox;
 
         public ProjectConfigurationForm()
         {
@@ -50,14 +51,14 @@ namespace VirtualDesktopDisplayer
             _defaultProjectGroup = new GroupBox
             {
                 Text = "Default Project",
-                Height = 120
+                Height = 150
             };
 
             var defaultPanel = new TableLayoutPanel
             {
                 Dock = DockStyle.Fill,
                 ColumnCount = 2,
-                RowCount = 2,
+                RowCount = 3,
                 Padding = new Padding(10)
             };
 
@@ -68,6 +69,10 @@ namespace VirtualDesktopDisplayer
             defaultPanel.Controls.Add(new Label { Text = "Project Name:", Anchor = AnchorStyles.Left }, 0, 1);
             _defaultNameTextBox = new TextBox { Anchor = AnchorStyles.Left | AnchorStyles.Right };
             defaultPanel.Controls.Add(_defaultNameTextBox, 1, 1);
+
+            defaultPanel.Controls.Add(new Label { Text = "Label IDs:", Anchor = AnchorStyles.Left }, 0, 2);
+            _defaultLabelIdsTextBox = new TextBox { Anchor = AnchorStyles.Left | AnchorStyles.Right };
+            defaultPanel.Controls.Add(_defaultLabelIdsTextBox, 1, 2);
 
             defaultPanel.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 100));
             defaultPanel.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
@@ -113,8 +118,16 @@ namespace VirtualDesktopDisplayer
             {
                 Name = "Keywords",
                 HeaderText = "Keywords (comma separated)",
-                Width = 300,
+                Width = 250,
                 DataPropertyName = "KeywordsString"
+            });
+
+            _projectGrid.Columns.Add(new DataGridViewTextBoxColumn
+            {
+                Name = "LabelIds",
+                HeaderText = "Label IDs (comma separated)",
+                Width = 200,
+                DataPropertyName = "LabelIdsString"
             });
 
             gridPanel.Controls.Add(_projectGrid);
@@ -169,7 +182,7 @@ namespace VirtualDesktopDisplayer
             mainPanel.Controls.Add(gridPanel, 0, 1);
             mainPanel.Controls.Add(buttonPanel, 0, 2);
 
-            mainPanel.RowStyles.Add(new RowStyle(SizeType.Absolute, 130));
+            mainPanel.RowStyles.Add(new RowStyle(SizeType.Absolute, 160));
             mainPanel.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
             mainPanel.RowStyles.Add(new RowStyle(SizeType.Absolute, 60));
 
@@ -181,13 +194,15 @@ namespace VirtualDesktopDisplayer
             // Load default project
             _defaultIdTextBox.Text = _projectConfig.DefaultProject.Id.ToString();
             _defaultNameTextBox.Text = _projectConfig.DefaultProject.Name;
+            _defaultLabelIdsTextBox.Text = string.Join(", ", _projectConfig.DefaultProject.LabelIds);
 
             // Load project mappings
             var dataSource = _projectConfig.ProjectMappings.Select(m => new ProjectMappingViewModel
             {
                 ProjectId = m.Project.Id,
                 ProjectName = m.Project.Name,
-                KeywordsString = string.Join(", ", m.Keywords)
+                KeywordsString = string.Join(", ", m.Keywords),
+                LabelIdsString = string.Join(", ", m.Project.LabelIds)
             }).ToList();
 
             _projectGrid.DataSource = dataSource;
@@ -203,7 +218,8 @@ namespace VirtualDesktopDisplayer
                 {
                     ProjectId = form.ProjectId,
                     ProjectName = form.ProjectName,
-                    KeywordsString = string.Join(", ", form.Keywords)
+                    KeywordsString = string.Join(", ", form.Keywords),
+                    LabelIdsString = string.Join(", ", form.LabelIds)
                 });
 
                 _projectGrid.DataSource = null;
@@ -233,6 +249,14 @@ namespace VirtualDesktopDisplayer
                 {
                     _projectConfig.DefaultProject.Id = defaultId;
                     _projectConfig.DefaultProject.Name = _defaultNameTextBox.Text;
+                    
+                    var defaultLabelIds = _defaultLabelIdsTextBox.Text
+                        .Split(new[] { ',', ';' }, StringSplitOptions.RemoveEmptyEntries)
+                        .Select(l => l.Trim())
+                        .Where(l => !string.IsNullOrEmpty(l) && int.TryParse(l, out _))
+                        .Select(l => int.Parse(l))
+                        .ToList();
+                    _projectConfig.DefaultProject.LabelIds = defaultLabelIds;
                 }
 
                 // Update project mappings
@@ -247,9 +271,21 @@ namespace VirtualDesktopDisplayer
                         .Where(k => !string.IsNullOrEmpty(k))
                         .ToList();
 
+                    var labelIds = item.LabelIdsString
+                        .Split(new[] { ',', ';' }, StringSplitOptions.RemoveEmptyEntries)
+                        .Select(l => l.Trim())
+                        .Where(l => !string.IsNullOrEmpty(l) && int.TryParse(l, out _))
+                        .Select(l => int.Parse(l))
+                        .ToList();
+
                     _projectConfig.ProjectMappings.Add(new ProjectMapping
                     {
-                        Project = new ProjectInfo { Id = item.ProjectId, Name = item.ProjectName },
+                        Project = new ProjectInfo 
+                        { 
+                            Id = item.ProjectId, 
+                            Name = item.ProjectName,
+                            LabelIds = labelIds
+                        },
                         Keywords = keywords
                     });
                 }
@@ -274,6 +310,7 @@ namespace VirtualDesktopDisplayer
         public long ProjectId { get; set; }
         public string ProjectName { get; set; } = "";
         public string KeywordsString { get; set; } = "";
+        public string LabelIdsString { get; set; } = "";
     }
 
     /// <summary>
@@ -284,10 +321,12 @@ namespace VirtualDesktopDisplayer
         public long ProjectId { get; private set; }
         public string ProjectName { get; private set; } = "";
         public List<string> Keywords { get; private set; } = new List<string>();
+        public List<int> LabelIds { get; private set; } = new List<int>();
 
         private TextBox _idTextBox;
         private TextBox _nameTextBox;
         private TextBox _keywordsTextBox;
+        private TextBox _labelIdsTextBox;
 
         public ProjectMappingEditForm()
         {
@@ -297,7 +336,7 @@ namespace VirtualDesktopDisplayer
         private void InitializeComponent()
         {
             this.Text = "Add Project Mapping";
-            this.Size = new Size(400, 200);
+            this.Size = new Size(400, 250);
             this.StartPosition = FormStartPosition.CenterParent;
             this.FormBorderStyle = FormBorderStyle.FixedDialog;
             this.MaximizeBox = false;
@@ -307,7 +346,7 @@ namespace VirtualDesktopDisplayer
             {
                 Dock = DockStyle.Fill,
                 ColumnCount = 2,
-                RowCount = 4,
+                RowCount = 5,
                 Padding = new Padding(10)
             };
 
@@ -322,6 +361,10 @@ namespace VirtualDesktopDisplayer
             layout.Controls.Add(new Label { Text = "Keywords:", Anchor = AnchorStyles.Left }, 0, 2);
             _keywordsTextBox = new TextBox { Anchor = AnchorStyles.Left | AnchorStyles.Right };
             layout.Controls.Add(_keywordsTextBox, 1, 2);
+
+            layout.Controls.Add(new Label { Text = "Label IDs:", Anchor = AnchorStyles.Left }, 0, 3);
+            _labelIdsTextBox = new TextBox { Anchor = AnchorStyles.Left | AnchorStyles.Right };
+            layout.Controls.Add(_labelIdsTextBox, 1, 3);
 
             var buttonPanel = new FlowLayoutPanel
             {
@@ -351,13 +394,19 @@ namespace VirtualDesktopDisplayer
                         .Select(k => k.Trim())
                         .Where(k => !string.IsNullOrEmpty(k))
                         .ToList();
+                    LabelIds = _labelIdsTextBox.Text
+                        .Split(new[] { ',', ';' }, StringSplitOptions.RemoveEmptyEntries)
+                        .Select(l => l.Trim())
+                        .Where(l => !string.IsNullOrEmpty(l) && int.TryParse(l, out _))
+                        .Select(l => int.Parse(l))
+                        .ToList();
                 }
             };
 
             buttonPanel.Controls.Add(cancelButton);
             buttonPanel.Controls.Add(okButton);
 
-            layout.Controls.Add(buttonPanel, 1, 3);
+            layout.Controls.Add(buttonPanel, 1, 4);
 
             layout.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 100));
             layout.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
