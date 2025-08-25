@@ -63,8 +63,16 @@ namespace VirtualDesktopHelper.Services
                 ? _consolidationService.ConsolidateUsageEntries(filteredEntries)
                 : filteredEntries;
 
+            // Filter out entries with zero duration after ceiling to minutes
+            var validEntries = DesktopUsageUtilities.FilterZeroDurationEntries(consolidatedEntries);
+            
+            if (!validEntries.Any())
+            {
+                throw new InvalidOperationException(currentDayOnly ? "No usage data available for today after filtering zero-duration entries." : "No usage data available after filtering zero-duration entries.");
+            }
+
             // Group consecutive activities by desktop name
-            var desktopGroups = GroupConsecutiveActivities(consolidatedEntries);
+            var desktopGroups = GroupConsecutiveActivities(validEntries);
             
             // Determine target date
             string targetDate = filteredEntries.FirstOrDefault()?.StartTime.ToString("yyyy-MM-dd") ?? DateTime.Now.ToString("yyyy-MM-dd");
@@ -129,9 +137,9 @@ namespace VirtualDesktopHelper.Services
 
                 desktopGroups[desktopName].Add(new TimestampEntry
                 {
-                    From = entry.StartTime.ToString($"yyyy-MM-ddTHH:mm:ss.000{_timelyConfig.TimezoneOffset}"),
-                    To = (entry.EndTime ?? DateTime.Now).ToString($"yyyy-MM-ddTHH:mm:ss.000{_timelyConfig.TimezoneOffset}"),
-                    DurationMinutes = entry.Duration.TotalMinutes,
+                    From = DesktopUsageUtilities.CeilDateTimeToNextMinute(entry.StartTime).ToString($"yyyy-MM-ddTHH:mm:ss.000{_timelyConfig.TimezoneOffset}"),
+                    To = DesktopUsageUtilities.CeilDateTimeToNextMinute(entry.EndTime ?? DateTime.Now).ToString($"yyyy-MM-ddTHH:mm:ss.000{_timelyConfig.TimezoneOffset}"),
+                    DurationMinutes = DesktopUsageUtilities.CalculateCeiledDurationInMinutes(entry),
                     ProjectId = project.Id,
                     ProjectName = project.Name,
                     DesktopName = entry.DesktopName,
@@ -173,6 +181,11 @@ namespace VirtualDesktopHelper.Services
             return merged;
         }
 
+        /// <summary>
+        /// Calculates the adjusted end time based on ceiled duration.
+        /// </summary>
+        /// <param name="entry">The desktop usage entry.</param>
+        /// <returns>End time adjusted to reflect ceiled duration in minutes.</returns>
         private string GenerateJavaScriptContent(Dictionary<string, List<TimestampEntry>> desktopGroups, string targetDate)
         {
             var js = new StringBuilder();
@@ -320,9 +333,9 @@ namespace VirtualDesktopHelper.Services
             {
                 string desktopName = kvp.Key;
                 var timestamps = kvp.Value;
-                double totalMinutes = timestamps.Sum(t => t.DurationMinutes);
-                int hours = (int)(totalMinutes / 60);
-                int minutes = (int)(totalMinutes % 60);
+                int totalMinutes = (int)timestamps.Sum(t => t.DurationMinutes);
+                int hours = totalMinutes / 60;
+                int minutes = totalMinutes % 60;
 
                 // Get project ID and label IDs from the first timestamp entry (all should have the same project for a desktop)
                 long projectId = timestamps.FirstOrDefault()?.ProjectId ?? _timelyConfig.DefaultProjectId;
@@ -344,7 +357,7 @@ namespace VirtualDesktopHelper.Services
                 js.AppendLine($"        \"{desktopName}\","); // Use desktop name as the note
                 js.AppendLine($"        {projectId},");
                 js.AppendLine($"        {timestampsJs},");
-                js.AppendLine($"        {totalMinutes.ToString("F2", System.Globalization.CultureInfo.InvariantCulture)},");
+                js.AppendLine($"        {totalMinutes},");
                 js.AppendLine($"        {labelIdsJs}");
                 js.AppendLine("    );");
             }
@@ -358,12 +371,15 @@ namespace VirtualDesktopHelper.Services
                 ? _consolidationService.ConsolidateUsageEntries(filteredEntries)
                 : filteredEntries;
 
-            var projectStatistics = _projectDetectionService.GetProjectStatistics(consolidatedEntries);
+            // Filter out entries with zero duration after ceiling to minutes
+            var validEntries = DesktopUsageUtilities.FilterZeroDurationEntries(consolidatedEntries);
+
+            var projectStatistics = _projectDetectionService.GetProjectStatistics(validEntries);
 
             var jsonReport = new
             {
                 GeneratedAt = DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss"),
-                TotalActivities = consolidatedEntries.Count,
+                TotalActivities = validEntries.Count,
                 ConsolidationEnabled = _config.EnableActivityConsolidation,
                 ConsolidationSettings = new
                 {
@@ -376,20 +392,23 @@ namespace VirtualDesktopHelper.Services
                 {
                     ProjectId = kvp.Key.Id,
                     ProjectName = kvp.Key.Name,
-                    TotalDurationMinutes = Math.Round(kvp.Value.TotalMinutes, 2),
+                    TotalDurationMinutes = validEntries
+                        .Where(e => _projectDetectionService.DetectProjectForEntry(e).Id == kvp.Key.Id)
+                        .Sum(e => DesktopUsageUtilities.CalculateCeiledDurationInMinutes(e)),
                     TotalDurationFormatted = DesktopUsageUtilities.FormatTimeSpan(kvp.Value)
                 }).ToList(),
-                Activities = consolidatedEntries.Select(entry => 
+                Activities = validEntries.Select(entry => 
                 {
                     var project = _projectDetectionService.DetectProjectForEntry(entry);
+                    var ceiledDurationMinutes = DesktopUsageUtilities.CalculateCeiledDurationInMinutes(entry);
                     return new
                     {
                         DesktopName = entry.DesktopName,
                         StartTime = entry.StartTime.ToString("yyyy-MM-dd HH:mm:ss"),
                         EndTime = entry.EndTime?.ToString("yyyy-MM-dd HH:mm:ss"),
-                        DurationSeconds = (int)entry.Duration.TotalSeconds,
-                        DurationMinutes = Math.Round(entry.Duration.TotalMinutes, 2),
-                        DurationFormatted = DesktopUsageUtilities.FormatTimeSpan(entry.Duration),
+                        DurationSeconds = ceiledDurationMinutes * 60, // Convert back to seconds for consistency
+                        DurationMinutes = ceiledDurationMinutes,
+                        DurationFormatted = DesktopUsageUtilities.FormatTimeSpan(TimeSpan.FromMinutes(ceiledDurationMinutes)),
                         Date = entry.StartTime.ToString("yyyy-MM-dd"),
                         ProjectId = project.Id,
                         ProjectName = project.Name
@@ -429,7 +448,7 @@ namespace VirtualDesktopHelper.Services
         {
             public string From { get; set; } = "";
             public string To { get; set; } = "";
-            public double DurationMinutes { get; set; }
+            public int DurationMinutes { get; set; }
             public long ProjectId { get; set; }
             public string ProjectName { get; set; } = "";
             public string DesktopName { get; set; } = "";

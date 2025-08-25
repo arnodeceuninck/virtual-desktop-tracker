@@ -176,5 +176,97 @@ namespace VirtualDesktopHelper.Services
                 .GroupBy(e => e.DesktopName)
                 .ToDictionary(g => g.Key, g => TimeSpan.FromTicks(g.Sum(e => e.Duration.Ticks)));
         }
+
+        /// <summary>
+        /// Ceils a duration to the next minute. If the duration is already an exact minute, it remains unchanged.
+        /// </summary>
+        /// <param name="duration">The duration to ceil.</param>
+        /// <returns>Duration ceiled to the next minute.</returns>
+        public static TimeSpan CeilToNextMinute(TimeSpan duration)
+        {
+            if (duration.TotalMinutes == Math.Floor(duration.TotalMinutes))
+            {
+                // Duration is already an exact minute
+                return duration;
+            }
+            
+            // Ceil to next minute
+            return TimeSpan.FromMinutes(Math.Ceiling(duration.TotalMinutes));
+        }
+
+        /// <summary>
+        /// Ceils a DateTime to the next minute. If the time is already at exact minute (seconds = 0), it remains unchanged.
+        /// </summary>
+        /// <param name="dateTime">The DateTime to ceil.</param>
+        /// <returns>DateTime ceiled to the next minute.</returns>
+        public static DateTime CeilDateTimeToNextMinute(DateTime dateTime)
+        {
+            if (dateTime.Second == 0 && dateTime.Millisecond == 0)
+            {
+                // Already at exact minute
+                return dateTime;
+            }
+            
+            // Ceil to next minute by adding 1 minute and zeroing seconds/milliseconds
+            return new DateTime(dateTime.Year, dateTime.Month, dateTime.Day, 
+                dateTime.Hour, dateTime.Minute, 0, 0).AddMinutes(1);
+        }
+
+        /// <summary>
+        /// Calculates the duration in minutes between two ceiled timestamps.
+        /// </summary>
+        /// <param name="startTime">Start time to be ceiled.</param>
+        /// <param name="endTime">End time to be ceiled.</param>
+        /// <returns>Duration in minutes between the ceiled timestamps.</returns>
+        public static int CalculateCeiledDurationInMinutes(DateTime startTime, DateTime endTime)
+        {
+            if (endTime < startTime)
+            {
+                throw new InvalidOperationException("End time cannot be before start time.");
+            }
+
+            var ceiledStartTime = CeilDateTimeToNextMinute(startTime);
+            var ceiledEndTime = CeilDateTimeToNextMinute(endTime);
+            
+            if (ceiledEndTime <= ceiledStartTime)
+            {
+                return 0; // Duration becomes zero after ceiling
+            }
+
+            var duration = ceiledEndTime.Subtract(ceiledStartTime);
+            return (int)duration.TotalMinutes;
+        }
+
+        /// <summary>
+        /// Calculates the duration in minutes for a desktop usage entry using ceiled timestamps.
+        /// </summary>
+        /// <param name="entry">The desktop usage entry.</param>
+        /// <returns>Duration in minutes between the ceiled timestamps.</returns>
+        public static int CalculateCeiledDurationInMinutes(DesktopUsageEntry entry)
+        {
+            var endTime = entry.EndTime ?? DateTime.Now;
+            return CalculateCeiledDurationInMinutes(entry.StartTime, endTime);
+        }
+
+        /// <summary>
+        /// Gets the ceiled start and end times for a desktop usage entry.
+        /// </summary>
+        /// <param name="entry">The desktop usage entry.</param>
+        /// <returns>Tuple containing ceiled start time and ceiled end time.</returns>
+        public static (DateTime CeiledStartTime, DateTime CeiledEndTime) GetCeiledTimes(DesktopUsageEntry entry)
+        {
+            var endTime = entry.EndTime ?? DateTime.Now;
+            return (CeilDateTimeToNextMinute(entry.StartTime), CeilDateTimeToNextMinute(endTime));
+        }
+
+        /// <summary>
+        /// Filters out entries that have zero duration after ceiling to minutes.
+        /// </summary>
+        /// <param name="entries">The entries to filter.</param>
+        /// <returns>Entries with non-zero ceiled duration in minutes.</returns>
+        public static List<DesktopUsageEntry> FilterZeroDurationEntries(List<DesktopUsageEntry> entries)
+        {
+            return entries.Where(entry => CalculateCeiledDurationInMinutes(entry) > 0).ToList();
+        }
     }
 }

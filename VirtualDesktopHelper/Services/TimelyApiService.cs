@@ -109,18 +109,21 @@ namespace VirtualDesktopHelper.Services
                 // Consolidate entries first
                 var consolidatedEntries = _consolidationService.ConsolidateUsageEntries(filteredEntries);
                 
-                if (!consolidatedEntries.Any())
+                // Filter out entries with zero duration after ceiling to minutes
+                var validEntries = DesktopUsageUtilities.FilterZeroDurationEntries(consolidatedEntries);
+                
+                if (!validEntries.Any())
                 {
-                    var error = "No entries to upload after consolidation";
+                    var error = "No entries to upload after consolidation and filtering zero-duration entries";
                     result.Errors.Add(error);
                     LogError(error);
                     return result;
                 }
 
-                LogInfo($"Starting upload of {consolidatedEntries.Count} consolidated activities for {targetDate:yyyy-MM-dd}");
+                LogInfo($"Starting upload of {validEntries.Count} consolidated activities for {targetDate:yyyy-MM-dd}");
 
                 // Group activities by desktop name (like TimelyJavaScript generator does)
-                var desktopGroups = GroupActivitiesByDesktopName(consolidatedEntries);
+                var desktopGroups = GroupActivitiesByDesktopName(validEntries);
                 
                 LogInfo($"Grouped into {desktopGroups.Count} desktop groups for upload");
 
@@ -162,20 +165,20 @@ namespace VirtualDesktopHelper.Services
             // Detect project for this activity's desktop
             var project = _projectDetectionService.DetectProjectForEntry(activity);
             
-            // Calculate duration - use EndTime if available, otherwise assume current time
-            var endTime = activity.EndTime ?? DateTime.Now;
-            var totalMinutes = (int)(endTime - activity.StartTime).TotalMinutes;
+            // Calculate ceiled duration in minutes
+            var totalMinutes = DesktopUsageUtilities.CalculateCeiledDurationInMinutes(activity);
             
             if (totalMinutes <= 0)
             {
-                throw new InvalidOperationException("No valid time duration found");
+                throw new InvalidOperationException("No valid time duration found after ceiling to minutes");
             }
 
-            // Create timestamp for this activity
+            // Create timestamp for this activity using ceiled times
+            var ceiledTimes = DesktopUsageUtilities.GetCeiledTimes(activity);
             var timestamp = new
             {
-                from = activity.StartTime.ToString("yyyy-MM-ddTHH:mm:ss.fff") + _timelyConfig.TimezoneOffset,
-                to = endTime.ToString("yyyy-MM-ddTHH:mm:ss.fff") + _timelyConfig.TimezoneOffset,
+                from = ceiledTimes.CeiledStartTime.ToString("yyyy-MM-ddTHH:mm:ss.fff") + _timelyConfig.TimezoneOffset,
+                to = ceiledTimes.CeiledEndTime.ToString("yyyy-MM-ddTHH:mm:ss.fff") + _timelyConfig.TimezoneOffset,
                 entry_ids = new int[0]
             };
 
@@ -289,20 +292,24 @@ namespace VirtualDesktopHelper.Services
             var firstActivity = activities.First();
             var project = _projectDetectionService.DetectProjectForEntry(firstActivity);
             
-            // Calculate total duration and create timestamps for all activities
-            var totalMinutes = activities.Sum(a => (int)(a.EndTime!.Value - a.StartTime).TotalMinutes);
+            // Calculate total duration using ceiled minutes for each activity
+            var totalMinutes = activities.Sum(a => DesktopUsageUtilities.CalculateCeiledDurationInMinutes(a));
             
             if (totalMinutes <= 0)
             {
-                throw new InvalidOperationException("No valid time duration found for desktop group");
+                throw new InvalidOperationException("No valid time duration found for desktop group after ceiling to minutes");
             }
 
-            // Create timestamps for each activity period
-            var timestamps = activities.Select(activity => new
+            // Create timestamps for each activity period using ceiled times
+            var timestamps = activities.Select(activity => 
             {
-                from = activity.StartTime.ToString("yyyy-MM-ddTHH:mm:ss.fff") + _timelyConfig.TimezoneOffset,
-                to = activity.EndTime!.Value.ToString("yyyy-MM-ddTHH:mm:ss.fff") + _timelyConfig.TimezoneOffset,
-                entry_ids = new int[0]
+                var ceiledTimes = DesktopUsageUtilities.GetCeiledTimes(activity);
+                return new
+                {
+                    from = ceiledTimes.CeiledStartTime.ToString("yyyy-MM-ddTHH:mm:ss.fff") + _timelyConfig.TimezoneOffset,
+                    to = ceiledTimes.CeiledEndTime.ToString("yyyy-MM-ddTHH:mm:ss.fff") + _timelyConfig.TimezoneOffset,
+                    entry_ids = new int[0]
+                };
             }).ToArray();
 
             // Use the desktop name as the note
