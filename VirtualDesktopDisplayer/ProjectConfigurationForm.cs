@@ -2,8 +2,10 @@ using System;
 using System.Collections.Generic;
 using System.Drawing;
 using System.Linq;
+using System.Threading.Tasks;
 using System.Windows.Forms;
 using VirtualDesktopHelper.Configuration;
+using VirtualDesktopHelper.Services;
 
 namespace VirtualDesktopDisplayer
 {
@@ -22,6 +24,7 @@ namespace VirtualDesktopDisplayer
         private TextBox _defaultIdTextBox;
         private TextBox _defaultNameTextBox;
         private TextBox _defaultLabelIdsTextBox;
+        private Button _selectDefaultProjectButton;
 
         public ProjectConfigurationForm()
         {
@@ -33,7 +36,7 @@ namespace VirtualDesktopDisplayer
         private void InitializeComponent()
         {
             this.Text = "Project Configuration";
-            this.Size = new Size(800, 600);
+            this.Size = new Size(1000, 600);
             this.StartPosition = FormStartPosition.CenterParent;
             this.FormBorderStyle = FormBorderStyle.FixedDialog;
             this.MaximizeBox = false;
@@ -57,7 +60,7 @@ namespace VirtualDesktopDisplayer
             var defaultPanel = new TableLayoutPanel
             {
                 Dock = DockStyle.Fill,
-                ColumnCount = 2,
+                ColumnCount = 3,
                 RowCount = 3,
                 Padding = new Padding(10)
             };
@@ -65,17 +68,29 @@ namespace VirtualDesktopDisplayer
             defaultPanel.Controls.Add(new Label { Text = "Project ID:", Anchor = AnchorStyles.Left }, 0, 0);
             _defaultIdTextBox = new TextBox { Anchor = AnchorStyles.Left | AnchorStyles.Right };
             defaultPanel.Controls.Add(_defaultIdTextBox, 1, 0);
+            
+            _selectDefaultProjectButton = new Button 
+            { 
+                Text = "Select from Timely",
+                Anchor = AnchorStyles.Left | AnchorStyles.Right,
+                Size = new Size(120, 23)
+            };
+            _selectDefaultProjectButton.Click += SelectDefaultProjectButton_Click;
+            defaultPanel.Controls.Add(_selectDefaultProjectButton, 2, 0);
 
             defaultPanel.Controls.Add(new Label { Text = "Project Name:", Anchor = AnchorStyles.Left }, 0, 1);
             _defaultNameTextBox = new TextBox { Anchor = AnchorStyles.Left | AnchorStyles.Right };
             defaultPanel.Controls.Add(_defaultNameTextBox, 1, 1);
+            defaultPanel.Controls.Add(new Label(), 2, 1); // Empty cell
 
             defaultPanel.Controls.Add(new Label { Text = "Label IDs:", Anchor = AnchorStyles.Left }, 0, 2);
             _defaultLabelIdsTextBox = new TextBox { Anchor = AnchorStyles.Left | AnchorStyles.Right };
             defaultPanel.Controls.Add(_defaultLabelIdsTextBox, 1, 2);
+            defaultPanel.Controls.Add(new Label(), 2, 2); // Empty cell
 
             defaultPanel.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 100));
-            defaultPanel.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
+            defaultPanel.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 70));
+            defaultPanel.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 30));
 
             _defaultProjectGroup.Controls.Add(defaultPanel);
 
@@ -300,6 +315,34 @@ namespace VirtualDesktopDisplayer
                     MessageBoxButtons.OK, MessageBoxIcon.Error);
             }
         }
+
+        private void SelectDefaultProjectButton_Click(object? sender, EventArgs e)
+        {
+            try
+            {
+                var timelyConfig = TimelyConfiguration.Instance;
+                if (string.IsNullOrEmpty(timelyConfig.CookieString) || string.IsNullOrEmpty(timelyConfig.WorkspaceId))
+                {
+                    MessageBox.Show("Timely configuration is required. Please configure Timely first.",
+                        "Configuration Required", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                    return;
+                }
+
+                var projectSelector = new TimelyProjectSelectorForm();
+                if (projectSelector.ShowDialog() == DialogResult.OK && projectSelector.SelectedProject != null)
+                {
+                    var selectedProject = projectSelector.SelectedProject;
+                    _defaultIdTextBox.Text = selectedProject.Id.ToString();
+                    _defaultNameTextBox.Text = selectedProject.Name;
+                    // Note: Label IDs would need to be set separately as they're not in the basic project info
+                }
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show($"Error retrieving projects: {ex.Message}",
+                    "Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
+            }
+        }
     }
 
     /// <summary>
@@ -327,6 +370,7 @@ namespace VirtualDesktopDisplayer
         private TextBox _nameTextBox;
         private TextBox _keywordsTextBox;
         private TextBox _labelIdsTextBox;
+        private Button _selectProjectButton;
 
         public ProjectMappingEditForm()
         {
@@ -336,7 +380,7 @@ namespace VirtualDesktopDisplayer
         private void InitializeComponent()
         {
             this.Text = "Add Project Mapping";
-            this.Size = new Size(400, 250);
+            this.Size = new Size(500, 280);
             this.StartPosition = FormStartPosition.CenterParent;
             this.FormBorderStyle = FormBorderStyle.FixedDialog;
             this.MaximizeBox = false;
@@ -345,26 +389,39 @@ namespace VirtualDesktopDisplayer
             var layout = new TableLayoutPanel
             {
                 Dock = DockStyle.Fill,
-                ColumnCount = 2,
+                ColumnCount = 3,
                 RowCount = 5,
                 Padding = new Padding(10)
             };
 
+            // Project ID row with select button
             layout.Controls.Add(new Label { Text = "Project ID:", Anchor = AnchorStyles.Left }, 0, 0);
             _idTextBox = new TextBox { Anchor = AnchorStyles.Left | AnchorStyles.Right };
             layout.Controls.Add(_idTextBox, 1, 0);
+            
+            _selectProjectButton = new Button 
+            { 
+                Text = "Select from Timely",
+                Anchor = AnchorStyles.Left | AnchorStyles.Right,
+                Size = new Size(120, 23)
+            };
+            _selectProjectButton.Click += SelectProjectButton_Click;
+            layout.Controls.Add(_selectProjectButton, 2, 0);
 
             layout.Controls.Add(new Label { Text = "Project Name:", Anchor = AnchorStyles.Left }, 0, 1);
             _nameTextBox = new TextBox { Anchor = AnchorStyles.Left | AnchorStyles.Right };
             layout.Controls.Add(_nameTextBox, 1, 1);
+            layout.Controls.Add(new Label(), 2, 1); // Empty cell
 
             layout.Controls.Add(new Label { Text = "Keywords:", Anchor = AnchorStyles.Left }, 0, 2);
             _keywordsTextBox = new TextBox { Anchor = AnchorStyles.Left | AnchorStyles.Right };
             layout.Controls.Add(_keywordsTextBox, 1, 2);
+            layout.Controls.Add(new Label(), 2, 2); // Empty cell
 
             layout.Controls.Add(new Label { Text = "Label IDs:", Anchor = AnchorStyles.Left }, 0, 3);
             _labelIdsTextBox = new TextBox { Anchor = AnchorStyles.Left | AnchorStyles.Right };
             layout.Controls.Add(_labelIdsTextBox, 1, 3);
+            layout.Controls.Add(new Label(), 2, 3); // Empty cell
 
             var buttonPanel = new FlowLayoutPanel
             {
@@ -409,9 +466,38 @@ namespace VirtualDesktopDisplayer
             layout.Controls.Add(buttonPanel, 1, 4);
 
             layout.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 100));
-            layout.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
+            layout.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 70));
+            layout.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 30));
 
             this.Controls.Add(layout);
+        }
+
+        private void SelectProjectButton_Click(object? sender, EventArgs e)
+        {
+            try
+            {
+                var timelyConfig = TimelyConfiguration.Instance;
+                if (string.IsNullOrEmpty(timelyConfig.CookieString) || string.IsNullOrEmpty(timelyConfig.WorkspaceId))
+                {
+                    MessageBox.Show("Timely configuration is required. Please configure Timely first.",
+                        "Configuration Required", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                    return;
+                }
+
+                var projectSelector = new TimelyProjectSelectorForm();
+                if (projectSelector.ShowDialog() == DialogResult.OK && projectSelector.SelectedProject != null)
+                {
+                    var selectedProject = projectSelector.SelectedProject;
+                    _idTextBox.Text = selectedProject.Id.ToString();
+                    _nameTextBox.Text = selectedProject.Name;
+                    // Note: Label IDs would need to be set separately as they're not in the basic project info
+                }
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show($"Error retrieving projects: {ex.Message}",
+                    "Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
+            }
         }
     }
 }

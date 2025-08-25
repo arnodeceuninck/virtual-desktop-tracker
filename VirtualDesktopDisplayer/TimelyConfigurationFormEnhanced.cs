@@ -27,6 +27,7 @@ namespace VirtualDesktopDisplayer
         private TextBox? txtCsrfToken;
         private TextBox? txtCookieString;
         private TextBox? txtProjectId;
+        private Button? btnSelectProject;
         private TextBox? txtUserId;
         private TextBox? txtWorkspaceId;
         private TextBox? txtSocketId;
@@ -176,11 +177,43 @@ namespace VirtualDesktopDisplayer
             }
 
             CreateField("Workspace ID:", out txtWorkspaceId);
-            CreateField("Project ID:", out txtProjectId);
+            
+            // Project ID with helper button
+            CreateProjectIdField(yPos, labelWidth, textBoxWidth);
+            yPos += 35;
+            
             CreateField("User ID:", out txtUserId);
             CreateField("Socket ID:", out txtSocketId);
             CreateField("CSRF Token:", out txtCsrfToken, isPassword: true);
             CreateField("Cookie String:", out txtCookieString, isMultiline: true);
+        }
+
+        private void CreateProjectIdField(int yPos, int labelWidth, int textBoxWidth)
+        {
+            var label = new Label
+            {
+                Text = "Project ID:",
+                Location = new Point(12, yPos),
+                Size = new Size(labelWidth, 23),
+                TextAlign = ContentAlignment.MiddleLeft
+            };
+            tabManual?.Controls.Add(label);
+
+            txtProjectId = new TextBox
+            {
+                Location = new Point(140, yPos),
+                Size = new Size(textBoxWidth - 90, 23)
+            };
+            tabManual?.Controls.Add(txtProjectId);
+
+            btnSelectProject = new Button
+            {
+                Text = "Browse...",
+                Location = new Point(140 + textBoxWidth - 85, yPos),
+                Size = new Size(80, 25)
+            };
+            btnSelectProject.Click += BtnSelectProject_Click;
+            tabManual?.Controls.Add(btnSelectProject);
         }
 
         private void CreateButtons()
@@ -269,6 +302,57 @@ namespace VirtualDesktopDisplayer
             catch (Exception ex)
             {
                 UpdateStatus($"❌ Error parsing cURL request: {ex.Message}", Color.Red);
+            }
+        }
+
+        private void BtnSelectProject_Click(object? sender, EventArgs e)
+        {
+            try
+            {
+                // Check if we have enough configuration to fetch projects
+                if (string.IsNullOrEmpty(_config.CookieString) || string.IsNullOrEmpty(_config.WorkspaceId))
+                {
+                    MessageBox.Show(
+                        "To browse projects, please first configure your Timely authentication.\n\n" +
+                        "You can either:\n" +
+                        "1. Use the 'Paste cURL Request' tab to extract configuration automatically, or\n" +
+                        "2. Manually enter your Workspace ID and Cookie String in the fields below.\n\n" +
+                        "After that, you'll be able to browse and select projects from your Timely workspace.",
+                        "Configuration Required",
+                        MessageBoxButtons.OK,
+                        MessageBoxIcon.Information);
+                    return;
+                }
+
+                using (var projectSelector = new TimelyProjectSelectorForm())
+                {
+                    var result = projectSelector.ShowDialog(this);
+                    if (result == DialogResult.OK && projectSelector.SelectedProject != null)
+                    {
+                        // Update the project ID field
+                        if (txtProjectId != null)
+                        {
+                            txtProjectId.Text = projectSelector.SelectedProject.Id.ToString();
+                        }
+
+                        // Update the internal configuration
+                        _config.DefaultProjectId = projectSelector.SelectedProject.Id;
+
+                        MessageBox.Show(
+                            $"Selected project: {projectSelector.SelectedProject.DisplayNameWithClient}",
+                            "Project Selected",
+                            MessageBoxButtons.OK,
+                            MessageBoxIcon.Information);
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show(
+                    $"Error opening project selector: {ex.Message}",
+                    "Error",
+                    MessageBoxButtons.OK,
+                    MessageBoxIcon.Error);
             }
         }
 
