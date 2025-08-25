@@ -36,7 +36,7 @@ namespace VirtualDesktopHelper.Services
             var report = new StringBuilder();
             
             // Filter entries for current day if requested
-            var filteredEntries = currentDayOnly ? FilterCurrentDayEntries(allEntries) : allEntries;
+            var filteredEntries = currentDayOnly ? DesktopUsageUtilities.FilterCurrentDayEntries(allEntries) : allEntries;
             
             BuildReportHeader(report, currentDayOnly);
             
@@ -93,7 +93,7 @@ namespace VirtualDesktopHelper.Services
             await File.WriteAllTextAsync(reportFilePath, textReport);
             
             // Generate consolidated entries for JSON
-            var filteredEntries = currentDayOnly ? FilterCurrentDayEntries(allEntries) : allEntries;
+            var filteredEntries = currentDayOnly ? DesktopUsageUtilities.FilterCurrentDayEntries(allEntries) : allEntries;
             var consolidatedEntries = _config.EnableActivityConsolidation 
                 ? _consolidationService.ConsolidateUsageEntries(filteredEntries)
                 : filteredEntries;
@@ -139,7 +139,7 @@ namespace VirtualDesktopHelper.Services
                         EndTime = entry.EndTime?.ToString("yyyy-MM-dd HH:mm:ss"),
                         DurationSeconds = (int)entry.Duration.TotalSeconds,
                         DurationMinutes = Math.Round(entry.Duration.TotalMinutes, 2),
-                        DurationFormatted = FormatTimeSpan(entry.Duration),
+                        DurationFormatted = DesktopUsageUtilities.FormatTimeSpan(entry.Duration),
                         Date = entry.StartTime.ToString("yyyy-MM-dd")
                     }).ToList()
                 };
@@ -205,15 +205,6 @@ namespace VirtualDesktopHelper.Services
             return groupedByDate;
         }
 
-        private List<DesktopUsageEntry> FilterCurrentDayEntries(List<DesktopUsageEntry> allEntries)
-        {
-            var today = DateTime.Today;
-            var tomorrow = today.AddDays(1);
-
-            return allEntries.Where(entry => 
-                entry.StartTime >= today && entry.StartTime < tomorrow).ToList();
-        }
-
         private void BuildTotalTimeSection(StringBuilder report, Dictionary<string, TimeSpan> groupedByDesktop)
         {
             report.AppendLine("Total Time Per Desktop:");
@@ -221,7 +212,7 @@ namespace VirtualDesktopHelper.Services
             
             foreach (var kvp in groupedByDesktop.OrderByDescending(x => x.Value))
             {
-                report.AppendLine($"{kvp.Key}: {FormatTimeSpan(kvp.Value)}");
+                report.AppendLine($"{kvp.Key}: {DesktopUsageUtilities.FormatTimeSpan(kvp.Value)}");
             }
             report.AppendLine();
         }
@@ -237,19 +228,9 @@ namespace VirtualDesktopHelper.Services
                 foreach (var entry in dateGroup.Value.OrderBy(x => x.StartTime))
                 {
                     string endTimeStr = entry.EndTime?.ToString("HH:mm:ss") ?? "ongoing";
-                    report.AppendLine($"  {entry.StartTime:HH:mm:ss} - {endTimeStr} : {entry.DesktopName} ({FormatTimeSpan(entry.Duration)})");
+                    report.AppendLine($"  {entry.StartTime:HH:mm:ss} - {endTimeStr} : {entry.DesktopName} ({DesktopUsageUtilities.FormatTimeSpan(entry.Duration)})");
                 }
             }
-        }
-
-        private static string FormatTimeSpan(TimeSpan ts)
-        {
-            if (ts.TotalHours >= 1)
-                return $"{ts.Hours}h {ts.Minutes}m {ts.Seconds}s";
-            else if (ts.TotalMinutes >= 1)
-                return $"{ts.Minutes}m {ts.Seconds}s";
-            else
-                return $"{ts.Seconds}s";
         }
     }
 }

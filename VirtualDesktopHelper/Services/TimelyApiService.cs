@@ -90,10 +90,10 @@ namespace VirtualDesktopHelper.Services
                 }
 
                 // Ensure all entries have proper end times
-                var entriesWithEndTime = EnsureEndTimesAreSet(allEntries);
+                var entriesWithEndTime = DesktopUsageUtilities.EnsureEndTimesAreSet(allEntries);
 
                 // Filter entries for current day if requested
-                var filteredEntries = currentDayOnly ? FilterCurrentDayEntries(entriesWithEndTime) : entriesWithEndTime;
+                var filteredEntries = currentDayOnly ? DesktopUsageUtilities.FilterCurrentDayEntries(entriesWithEndTime) : entriesWithEndTime;
 
                 if (!filteredEntries.Any())
                 {
@@ -119,18 +119,26 @@ namespace VirtualDesktopHelper.Services
 
                 LogInfo($"Starting upload of {consolidatedEntries.Count} consolidated activities for {targetDate:yyyy-MM-dd}");
 
-                // Upload each individual activity (don't group by project - upload each desktop session separately)
-                foreach (var activity in consolidatedEntries)
+                // Group activities by desktop name (like TimelyJavaScript generator does)
+                var desktopGroups = GroupActivitiesByDesktopName(consolidatedEntries);
+                
+                LogInfo($"Grouped into {desktopGroups.Count} desktop groups for upload");
+
+                // Upload each desktop group as a single entry
+                foreach (var kvp in desktopGroups)
                 {
+                    string desktopName = kvp.Key;
+                    var activities = kvp.Value;
+                    
                     try
                     {
-                        await UploadSingleActivity(activity, targetDate);
+                        await UploadDesktopGroup(desktopName, activities, targetDate);
                         result.SuccessCount++;
-                        LogInfo($"Successfully uploaded: {activity.DesktopName}");
+                        LogInfo($"Successfully uploaded desktop group: {desktopName}");
                     }
                     catch (Exception ex)
                     {
-                        var error = $"Failed to upload: {activity.DesktopName}";
+                        var error = $"Failed to upload desktop group: {desktopName}";
                         var detailedError = $"{error} - {ex.Message}";
                         result.Errors.Add(error);
                         LogError(detailedError, ex);
@@ -248,28 +256,133 @@ namespace VirtualDesktopHelper.Services
             LogInfo($"Upload response: {responseContent}");
         }
 
-        private List<DesktopUsageEntry> EnsureEndTimesAreSet(List<DesktopUsageEntry> entries)
+        /// <summary>
+        /// Groups activities by desktop name, similar to how TimelyJavaScript generator works.
+        /// Each desktop name will have one submission with multiple timestamps if needed.
+        /// </summary>
+        private Dictionary<string, List<DesktopUsageEntry>> GroupActivitiesByDesktopName(List<DesktopUsageEntry> activities)
         {
-            DateTime now = DateTime.Now;
-            var processedEntries = new List<DesktopUsageEntry>();
-
-            foreach (var entry in entries)
+            var groups = new Dictionary<string, List<DesktopUsageEntry>>();
+            
+            foreach (var activity in activities.OrderBy(a => a.StartTime))
             {
-                processedEntries.Add(new DesktopUsageEntry
+                if (!groups.ContainsKey(activity.DesktopName))
                 {
-                    DesktopName = entry.DesktopName,
-                    StartTime = entry.StartTime,
-                    EndTime = entry.EndTime ?? now
-                });
+                    groups[activity.DesktopName] = new List<DesktopUsageEntry>();
+                }
+                groups[activity.DesktopName].Add(activity);
             }
-
-            return processedEntries;
+            
+            return groups;
         }
 
-        private List<DesktopUsageEntry> FilterCurrentDayEntries(List<DesktopUsageEntry> allEntries)
+        /// <summary>
+        /// Uploads a group of activities for the same desktop name as a single Timely entry.
+        /// This matches the behavior of the TimelyJavaScript generator.
+        /// </summary>
+        private async Task UploadDesktopGroup(string desktopName, List<DesktopUsageEntry> activities, DateTime targetDate)
         {
-            var today = DateTime.Today;
-            return allEntries.Where(entry => entry.StartTime.Date == today).ToList();
+            if (!activities.Any())
+                throw new InvalidOperationException("No activities to upload");
+
+            // Use the first activity to determine the project (all activities for same desktop should map to same project)
+            var firstActivity = activities.First();
+            var project = _projectDetectionService.DetectProjectForEntry(firstActivity);
+            
+            // Calculate total duration and create timestamps for all activities
+            var totalMinutes = activities.Sum(a => (int)(a.EndTime!.Value - a.StartTime).TotalMinutes);
+            
+            if (totalMinutes <= 0)
+            {
+                throw new InvalidOperationException("No valid time duration found for desktop group");
+            }
+
+            // Create timestamps for each activity period
+            var timestamps = activities.Select(activity => new
+            {
+                from = activity.StartTime.ToString("yyyy-MM-ddTHH:mm:ss.fff") + _timelyConfig.TimezoneOffset,
+                to = activity.EndTime!.Value.ToString("yyyy-MM-ddTHH:mm:ss.fff") + _timelyConfig.TimezoneOffset,
+                entry_ids = new int[0]
+            }).ToArray();
+
+            // Use the desktop name as the note
+            var note = desktopName;
+
+            // Create the request payload - use first and last timestamp for main from/to
+            var firstTimestamp = timestamps.First();
+            var lastTimestamp = timestamps.Last();
+
+            var eventData = new
+            {
+                @event = new
+                {
+                    day = targetDate.ToString("yyyy-MM-dd"),
+                    note = note,
+                    timer_state = "default",
+                    timer_started_on = 0,
+                    timer_stopped_on = 0,
+                    project_id = project.Id,
+                    forecast_id = (int?)null,
+                    label_ids = new int[0],
+                    user_ids = new int[0],
+                    entry_ids = new int[0],
+                    from = firstTimestamp.from,
+                    to = lastTimestamp.to,
+                    timestamps = timestamps,
+                    hours = totalMinutes / 60,
+                    minutes = totalMinutes % 60,
+                    seconds = 0,
+                    estimated_hours = 0,
+                    estimated_minutes = 0,
+                    sequence = 1,
+                    billable = false,
+                    context = new
+                    {
+                        interaction = "Timestamp Selection",
+                        view_context = "Calendar",
+                        memory_experience = "Old",
+                        memory_view = "Timeline",
+                        calendar_view = "Day",
+                        has_timer = false
+                    },
+                    state_id = (int?)null,
+                    billed = false,
+                    locked = false,
+                    locked_reason = (string?)null,
+                    external_links = new object[0],
+                    user_id = _timelyConfig.UserId
+                }
+            };
+
+            var json = JsonSerializer.Serialize(eventData, new JsonSerializerOptions
+            {
+                WriteIndented = false // Use compact JSON for API calls
+            });
+
+            var content = new StringContent(json, Encoding.UTF8, "application/json");
+            
+            var url = $"{_timelyConfig.ApiBaseUrl}/{_timelyConfig.WorkspaceId}/hours";
+            var referer = $"{_timelyConfig.ApiBaseUrl}/{_timelyConfig.WorkspaceId}/calendar/day?date={targetDate:yyyy-MM-dd}&multiUserMode=false";
+            
+            LogInfo($"Uploading desktop group to Timely: {note} ({activities.Count} periods, {totalMinutes} total minutes) to project {project.Name} (ID: {project.Id})");
+            LogInfo($"Request URL: {url}");
+            LogInfo($"Request payload: {json}");
+            
+            var request = new HttpRequestMessage(HttpMethod.Post, url);
+            request.Headers.Add("referer", referer);
+            request.Content = content;
+            
+            var response = await _httpClient.SendAsync(request);
+            
+            if (!response.IsSuccessStatusCode)
+            {
+                var errorContent = await response.Content.ReadAsStringAsync();
+                LogError($"HTTP {response.StatusCode} error: {errorContent}");
+                throw new HttpRequestException($"HTTP {response.StatusCode}: {errorContent}");
+            }
+            
+            var responseContent = await response.Content.ReadAsStringAsync();
+            LogInfo($"Upload response: {responseContent}");
         }
 
         private void LogError(string message, Exception? exception = null)

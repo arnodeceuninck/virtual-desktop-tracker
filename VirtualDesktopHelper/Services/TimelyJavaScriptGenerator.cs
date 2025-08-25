@@ -48,10 +48,10 @@ namespace VirtualDesktopHelper.Services
             }
 
             // Ensure all entries have proper end times before processing
-            var entriesWithEndTime = EnsureEndTimesAreSet(allEntries);
+            var entriesWithEndTime = DesktopUsageUtilities.EnsureEndTimesAreSet(allEntries);
 
             // Filter entries for current day if requested
-            var filteredEntries = currentDayOnly ? FilterCurrentDayEntries(entriesWithEndTime) : entriesWithEndTime;
+            var filteredEntries = currentDayOnly ? DesktopUsageUtilities.FilterCurrentDayEntries(entriesWithEndTime) : entriesWithEndTime;
             
             if (!filteredEntries.Any())
             {
@@ -81,7 +81,7 @@ namespace VirtualDesktopHelper.Services
         public async Task<string> GenerateTimelyJavaScriptFromReportAsync(List<DesktopUsageEntry> allEntries, bool currentDayOnly = true)
         {
             // Ensure all entries have proper end times before processing
-            var entriesWithEndTime = EnsureEndTimesAreSet(allEntries);
+            var entriesWithEndTime = DesktopUsageUtilities.EnsureEndTimesAreSet(allEntries);
 
             // Create a temporary JSON report
             var tempJsonPath = Path.GetTempFileName();
@@ -109,35 +109,6 @@ namespace VirtualDesktopHelper.Services
             }
         }
 
-        private List<DesktopUsageEntry> FilterCurrentDayEntries(List<DesktopUsageEntry> allEntries)
-        {
-            var today = DateTime.Today;
-            return allEntries.Where(entry => entry.StartTime.Date == today).ToList();
-        }
-
-        /// <summary>
-        /// Ensures all entries have proper end times set. Sets EndTime to current time for any entries that are still active (EndTime = null).
-        /// </summary>
-        /// <param name="entries">The entries to process.</param>
-        /// <returns>A new list of entries with all EndTime values properly set.</returns>
-        private List<DesktopUsageEntry> EnsureEndTimesAreSet(List<DesktopUsageEntry> entries)
-        {
-            DateTime now = DateTime.Now;
-            var processedEntries = new List<DesktopUsageEntry>();
-
-            foreach (var entry in entries)
-            {
-                processedEntries.Add(new DesktopUsageEntry
-                {
-                    DesktopName = entry.DesktopName,
-                    StartTime = entry.StartTime,
-                    EndTime = entry.EndTime ?? now
-                });
-            }
-
-            return processedEntries;
-        }
-
         private Dictionary<string, List<TimestampEntry>> GroupConsecutiveActivities(List<DesktopUsageEntry> entries)
         {
             var desktopGroups = new Dictionary<string, List<TimestampEntry>>();
@@ -159,7 +130,7 @@ namespace VirtualDesktopHelper.Services
                 desktopGroups[desktopName].Add(new TimestampEntry
                 {
                     From = entry.StartTime.ToString($"yyyy-MM-ddTHH:mm:ss.000{_timelyConfig.TimezoneOffset}"),
-                    To = entry.EndTime.Value.ToString($"yyyy-MM-ddTHH:mm:ss.000{_timelyConfig.TimezoneOffset}"),
+                    To = (entry.EndTime ?? DateTime.Now).ToString($"yyyy-MM-ddTHH:mm:ss.000{_timelyConfig.TimezoneOffset}"),
                     DurationMinutes = entry.Duration.TotalMinutes,
                     ProjectId = project.Id,
                     ProjectName = project.Name,
@@ -378,7 +349,7 @@ namespace VirtualDesktopHelper.Services
         private async Task GenerateTemporaryJsonReportAsync(List<DesktopUsageEntry> allEntries, string jsonPath, bool currentDayOnly)
         {
             // This is a simplified version - you might want to use the full UsageReportGenerator logic
-            var filteredEntries = currentDayOnly ? FilterCurrentDayEntries(allEntries) : allEntries;
+            var filteredEntries = currentDayOnly ? DesktopUsageUtilities.FilterCurrentDayEntries(allEntries) : allEntries;
             var consolidatedEntries = _config.EnableActivityConsolidation 
                 ? _consolidationService.ConsolidateUsageEntries(filteredEntries)
                 : filteredEntries;
@@ -402,7 +373,7 @@ namespace VirtualDesktopHelper.Services
                     ProjectId = kvp.Key.Id,
                     ProjectName = kvp.Key.Name,
                     TotalDurationMinutes = Math.Round(kvp.Value.TotalMinutes, 2),
-                    TotalDurationFormatted = FormatTimeSpan(kvp.Value)
+                    TotalDurationFormatted = DesktopUsageUtilities.FormatTimeSpan(kvp.Value)
                 }).ToList(),
                 Activities = consolidatedEntries.Select(entry => 
                 {
@@ -414,7 +385,7 @@ namespace VirtualDesktopHelper.Services
                         EndTime = entry.EndTime?.ToString("yyyy-MM-dd HH:mm:ss"),
                         DurationSeconds = (int)entry.Duration.TotalSeconds,
                         DurationMinutes = Math.Round(entry.Duration.TotalMinutes, 2),
-                        DurationFormatted = FormatTimeSpan(entry.Duration),
+                        DurationFormatted = DesktopUsageUtilities.FormatTimeSpan(entry.Duration),
                         Date = entry.StartTime.ToString("yyyy-MM-dd"),
                         ProjectId = project.Id,
                         ProjectName = project.Name
@@ -445,20 +416,6 @@ namespace VirtualDesktopHelper.Services
             // This would require implementing a Python process runner
             // For now, fallback to direct generation
             throw new NotImplementedException("Python script execution not implemented yet. Using direct C# generation.");
-        }
-
-        private string FormatTimeSpan(TimeSpan timeSpan)
-        {
-            var hours = (int)timeSpan.TotalHours;
-            var minutes = timeSpan.Minutes;
-            var seconds = timeSpan.Seconds;
-
-            if (hours > 0)
-                return $"{hours}h {minutes}m {seconds}s";
-            else if (minutes > 0)
-                return $"{minutes}m {seconds}s";
-            else
-                return $"{seconds}s";
         }
 
         /// <summary>
