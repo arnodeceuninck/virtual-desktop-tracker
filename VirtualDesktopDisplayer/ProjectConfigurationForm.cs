@@ -26,6 +26,7 @@ namespace VirtualDesktopDisplayer
         private TextBox _defaultLabelIdsTextBox;
         private Button _selectDefaultProjectButton;
         private Button _selectDefaultLabelsButton;
+        private Label _defaultProjectWarningLabel;
 
         public ProjectConfigurationForm()
         {
@@ -55,7 +56,7 @@ namespace VirtualDesktopDisplayer
             _defaultProjectGroup = new GroupBox
             {
                 Text = "Default Project",
-                Height = 180,
+                Height = 210,
                 Dock = DockStyle.Fill
             };
 
@@ -63,7 +64,7 @@ namespace VirtualDesktopDisplayer
             {
                 Dock = DockStyle.Fill,
                 ColumnCount = 3,
-                RowCount = 3,
+                RowCount = 4,
                 Padding = new Padding(10)
             };
 
@@ -98,6 +99,20 @@ namespace VirtualDesktopDisplayer
             };
             _selectDefaultLabelsButton.Click += SelectDefaultLabelsButton_Click;
             defaultPanel.Controls.Add(_selectDefaultLabelsButton, 2, 2);
+
+            // Warning label for required labels (spans all columns)
+            _defaultProjectWarningLabel = new Label
+            {
+                Text = "",
+                ForeColor = Color.Red,
+                Font = new Font(SystemFonts.DefaultFont, FontStyle.Bold),
+                AutoSize = false,
+                TextAlign = ContentAlignment.MiddleLeft,
+                Visible = false,
+                Anchor = AnchorStyles.Left | AnchorStyles.Right
+            };
+            defaultPanel.Controls.Add(_defaultProjectWarningLabel, 0, 3);
+            defaultPanel.SetColumnSpan(_defaultProjectWarningLabel, 3);
 
             defaultPanel.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 100));
             defaultPanel.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 60));
@@ -330,7 +345,7 @@ namespace VirtualDesktopDisplayer
             }
         }
 
-        private void SelectDefaultProjectButton_Click(object? sender, EventArgs e)
+        private async void SelectDefaultProjectButton_Click(object? sender, EventArgs e)
         {
             try
             {
@@ -352,6 +367,9 @@ namespace VirtualDesktopDisplayer
                     
                     // Enable the labels button now that we have a project
                     _selectDefaultLabelsButton.Enabled = true;
+                    
+                    // Check if we need to show a warning about required labels
+                    await CheckAndShowRequiredLabelsWarningAsync(selectedProject.Id, _defaultProjectWarningLabel);
                 }
             }
             catch (Exception ex)
@@ -449,6 +467,40 @@ namespace VirtualDesktopDisplayer
             }
             return labelIds;
         }
+
+        private async Task CheckAndShowRequiredLabelsWarningAsync(long projectId, Label warningLabel)
+        {
+            try
+            {
+                var timelyConfig = TimelyConfiguration.Instance;
+                if (string.IsNullOrEmpty(timelyConfig.CookieString) || string.IsNullOrEmpty(timelyConfig.WorkspaceId))
+                {
+                    // Can't check if Timely isn't configured
+                    warningLabel.Visible = false;
+                    return;
+                }
+
+                using (var labelService = new VirtualDesktopHelper.Services.TimelyLabelService())
+                {
+                    var projectDetails = await labelService.FetchProjectDetailsAsync(projectId);
+                    
+                    if (projectDetails.RequiredLabels)
+                    {
+                        warningLabel.Text = "⚠️ This project requires labels to be selected for time entries.";
+                        warningLabel.Visible = true;
+                    }
+                    else
+                    {
+                        warningLabel.Visible = false;
+                    }
+                }
+            }
+            catch (Exception)
+            {
+                // If we can't check, just hide the warning
+                warningLabel.Visible = false;
+            }
+        }
     }
 
     /// <summary>
@@ -478,6 +530,7 @@ namespace VirtualDesktopDisplayer
         private TextBox _labelIdsTextBox;
         private Button _selectProjectButton;
         private Button _selectLabelsButton;
+        private Label _warningLabel;
 
         public ProjectMappingEditForm()
         {
@@ -487,7 +540,7 @@ namespace VirtualDesktopDisplayer
         private void InitializeComponent()
         {
             this.Text = "Add Project Mapping";
-            this.Size = new Size(500, 280);
+            this.Size = new Size(500, 320);
             this.StartPosition = FormStartPosition.CenterParent;
             this.FormBorderStyle = FormBorderStyle.FixedDialog;
             this.MaximizeBox = false;
@@ -497,7 +550,7 @@ namespace VirtualDesktopDisplayer
             {
                 Dock = DockStyle.Fill,
                 ColumnCount = 3,
-                RowCount = 5,
+                RowCount = 6,
                 Padding = new Padding(10)
             };
 
@@ -539,6 +592,20 @@ namespace VirtualDesktopDisplayer
             _selectLabelsButton.Click += SelectLabelsButton_Click;
             layout.Controls.Add(_selectLabelsButton, 2, 3);
 
+            // Warning label for required labels (spans all columns)
+            _warningLabel = new Label
+            {
+                Text = "",
+                ForeColor = Color.Red,
+                Font = new Font(SystemFonts.DefaultFont, FontStyle.Bold),
+                AutoSize = false,
+                TextAlign = ContentAlignment.MiddleLeft,
+                Visible = false,
+                Anchor = AnchorStyles.Left | AnchorStyles.Right
+            };
+            layout.Controls.Add(_warningLabel, 0, 4);
+            layout.SetColumnSpan(_warningLabel, 3);
+
             var buttonPanel = new FlowLayoutPanel
             {
                 FlowDirection = FlowDirection.RightToLeft,
@@ -579,7 +646,7 @@ namespace VirtualDesktopDisplayer
             buttonPanel.Controls.Add(cancelButton);
             buttonPanel.Controls.Add(okButton);
 
-            layout.Controls.Add(buttonPanel, 1, 4);
+            layout.Controls.Add(buttonPanel, 1, 5);
 
             layout.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 100));
             layout.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 60));
@@ -588,7 +655,7 @@ namespace VirtualDesktopDisplayer
             this.Controls.Add(layout);
         }
 
-        private void SelectProjectButton_Click(object? sender, EventArgs e)
+        private async void SelectProjectButton_Click(object? sender, EventArgs e)
         {
             try
             {
@@ -610,6 +677,9 @@ namespace VirtualDesktopDisplayer
                     
                     // Enable the labels button now that we have a project
                     _selectLabelsButton.Enabled = true;
+                    
+                    // Check if we need to show a warning about required labels
+                    await CheckAndShowRequiredLabelsWarningAsync(selectedProject.Id, _warningLabel);
                 }
             }
             catch (Exception ex)
@@ -706,6 +776,42 @@ namespace VirtualDesktopDisplayer
                 }
             }
             return labelIds;
+        }
+
+        private async Task CheckAndShowRequiredLabelsWarningAsync(long projectId, Label warningLabel)
+        {
+            try
+            {
+                var timelyConfig = TimelyConfiguration.Instance;
+                if (string.IsNullOrEmpty(timelyConfig.CookieString) || string.IsNullOrEmpty(timelyConfig.WorkspaceId))
+                {
+                    // Can't check if Timely isn't configured
+                    warningLabel.Visible = false;
+                    return;
+                }
+
+                using (var labelService = new VirtualDesktopHelper.Services.TimelyLabelService())
+                {
+                    var projectDetails = await labelService.FetchProjectDetailsAsync(projectId);
+                    
+                    if (projectDetails.RequiredLabels)
+                    {
+                        warningLabel.Text = "⚠️ This project requires labels to be selected for time entries.";
+                        warningLabel.Visible = true;
+                    }
+                    else
+                    {
+                        warningLabel.Visible = false;
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                // If we can't check project details, don't show warning
+                // but also don't fail the operation
+                warningLabel.Visible = false;
+                System.Diagnostics.Debug.WriteLine($"Error checking project required labels: {ex.Message}");
+            }
         }
     }
 }
