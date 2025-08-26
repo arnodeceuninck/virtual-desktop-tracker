@@ -289,6 +289,7 @@ namespace VirtualDesktopDisplayer
             var contextMenu = new ContextMenuStrip();
 
             contextMenu.Items.Add("Working Hours Estimation", null, OnWorkingHoursEstimationClick);
+            contextMenu.Items.Add("Timeline View", null, OnTimelineViewClick);
             contextMenu.Items.Add(new ToolStripSeparator());
             contextMenu.Items.Add("View Log JSON", null, OnViewUsageLogClick);
             contextMenu.Items.Add("Open Log Folder", null, OnOpenLogFolderClick);
@@ -433,6 +434,19 @@ namespace VirtualDesktopDisplayer
             catch (Exception ex)
             {
                 _applicationService.ShowError($"Error estimating working hours: {ex.Message}");
+            }
+        }
+
+        private void OnTimelineViewClick(object? sender, EventArgs e)
+        {
+            try
+            {
+                var timelineForm = new TimelineViewForm(_usageTracker);
+                timelineForm.Show();
+            }
+            catch (Exception ex)
+            {
+                _applicationService.ShowError($"Error opening timeline view: {ex.Message}");
             }
         }
 
