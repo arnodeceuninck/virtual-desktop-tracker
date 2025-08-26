@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using VirtualDesktopHelper.Configuration;
+using VirtualDesktopHelper.Interfaces;
 using VirtualDesktopHelper.Models;
 
 namespace VirtualDesktopHelper.Services
@@ -12,15 +13,17 @@ namespace VirtualDesktopHelper.Services
     public class WorkingHoursEstimationService
     {
         private readonly TrackerConfiguration _config;
+        private readonly IUsageConsolidationService _consolidationService;
         private const double StandardWorkHoursPerDay = 7.33; // 7h20m in decimal hours
         private const double LunchBreakMinThreshold = 20.0; // Minimum minutes for lunch break
         private readonly TimeOnly LunchTimeStart = new TimeOnly(11, 45); // 11:45 AM
         private readonly TimeOnly LunchTimeEnd = new TimeOnly(13, 15); // 1:15 PM
         private readonly TimeOnly LunchTimeTarget = new TimeOnly(12, 30); // 12:30 PM
 
-        public WorkingHoursEstimationService(TrackerConfiguration? config = null)
+        public WorkingHoursEstimationService(TrackerConfiguration? config = null, IUsageConsolidationService? consolidationService = null)
         {
             _config = config ?? TrackerConfiguration.Instance;
+            _consolidationService = consolidationService ?? new UsageConsolidationService();
         }
 
         /// <summary>
@@ -40,7 +43,10 @@ namespace VirtualDesktopHelper.Services
                 .OrderBy(e => e.StartTime)
                 .ToList();
 
-            if (!dayEntries.Any())
+
+            var consolidatedEntries = _consolidationService.ConsolidateUsageEntries(dayEntries);
+
+            if (!consolidatedEntries.Any())
             {
                 return new WorkingHoursEstimation
                 {
@@ -54,14 +60,14 @@ namespace VirtualDesktopHelper.Services
             }
 
             // Find lunch break
-            var lunchBreak = FindLunchBreak(dayEntries);
+            var lunchBreak = FindLunchBreak(consolidatedEntries);
             
             // Calculate total working time (excluding lunch break)
-            var totalWorkingTime = CalculateWorkingTime(dayEntries, lunchBreak);
+            var totalWorkingTime = CalculateWorkingTime(consolidatedEntries, lunchBreak);
             var totalWorkedHours = totalWorkingTime.TotalHours;
 
             // Determine if still working (last entry is ongoing or recent)
-            var lastEntry = dayEntries.LastOrDefault();
+            var lastEntry = consolidatedEntries.LastOrDefault();
             var isStillWorking = IsStillWorking(lastEntry);
             
             // Calculate finish time estimation
