@@ -387,6 +387,15 @@ namespace VirtualDesktopDisplayer
             _config.EnableIssueTracking = _enableIssueTrackingCheckBox.Checked;
             _config.IssueFormatRegex = _regexTextBox.Text.Trim();
             _config.IssueUrlTemplate = _urlTemplateTextBox.Text.Trim();
+
+            // Persist the configuration to file
+            _config.SaveConfiguration();
+
+            MessageBox.Show("Issue tracking configuration saved successfully.", "Configuration Saved", 
+                MessageBoxButtons.OK, MessageBoxIcon.Information);
+
+            this.DialogResult = DialogResult.OK;
+            this.Close();
         }
     }
 }

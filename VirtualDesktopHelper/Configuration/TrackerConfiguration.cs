@@ -1,4 +1,6 @@
 using System;
+using System.IO;
+using System.Text.Json;
 
 namespace VirtualDesktopHelper.Configuration
 {
@@ -7,6 +9,8 @@ namespace VirtualDesktopHelper.Configuration
     /// </summary>
     public class TrackerConfiguration
     {
+        private static TrackerConfiguration? _instance;
+        private static readonly object _lock = new object();
         /// <summary>
         /// How often to check for desktop changes when screen is active.
         /// </summary>
@@ -117,8 +121,100 @@ namespace VirtualDesktopHelper.Configuration
         public bool EnableIssueTracking { get; set; } = false;
 
         /// <summary>
+        /// Filename for storing tracker configuration.
+        /// </summary>
+        public static string ConfigFileName { get; set; } = "tracker_config.json";
+
+        /// <summary>
         /// Gets the singleton instance of the configuration.
         /// </summary>
-        public static TrackerConfiguration Instance { get; } = new TrackerConfiguration();
+        public static TrackerConfiguration Instance
+        {
+            get
+            {
+                if (_instance == null)
+                {
+                    lock (_lock)
+                    {
+                        if (_instance == null)
+                        {
+                            _instance = LoadConfiguration();
+                        }
+                    }
+                }
+                return _instance;
+            }
+        }
+
+        /// <summary>
+        /// Gets the path to the configuration file.
+        /// </summary>
+        public static string GetConfigFilePath()
+        {
+            string documentsPath = Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments);
+            return Path.Combine(documentsPath, "VirtualDesktopLogs", ConfigFileName);
+        }
+
+        /// <summary>
+        /// Loads configuration from file or creates default configuration.
+        /// </summary>
+        private static TrackerConfiguration LoadConfiguration()
+        {
+            try
+            {
+                string configPath = GetConfigFilePath();
+                if (File.Exists(configPath))
+                {
+                    string json = File.ReadAllText(configPath);
+                    
+                    var options = new JsonSerializerOptions
+                    {
+                        PropertyNameCaseInsensitive = true,
+                        WriteIndented = true
+                    };
+                    
+                    var config = JsonSerializer.Deserialize<TrackerConfiguration>(json, options);
+                    if (config != null)
+                    {
+                        return config;
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"Error loading tracker configuration: {ex.Message}");
+            }
+
+            return new TrackerConfiguration();
+        }
+
+        /// <summary>
+        /// Saves the current configuration to file.
+        /// </summary>
+        public void SaveConfiguration()
+        {
+            try
+            {
+                string configPath = GetConfigFilePath();
+                string? directory = Path.GetDirectoryName(configPath);
+                
+                if (!string.IsNullOrEmpty(directory) && !Directory.Exists(directory))
+                {
+                    Directory.CreateDirectory(directory);
+                }
+
+                var options = new JsonSerializerOptions
+                {
+                    WriteIndented = true
+                };
+
+                string json = JsonSerializer.Serialize(this, options);
+                File.WriteAllText(configPath, json);
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"Error saving tracker configuration: {ex.Message}");
+            }
+        }
     }
 }
