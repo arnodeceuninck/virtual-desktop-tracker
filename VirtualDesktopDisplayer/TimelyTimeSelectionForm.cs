@@ -73,7 +73,7 @@ namespace VirtualDesktopDisplayer
                 CustomFormat = "yyyy-MM-dd HH:mm",
                 Size = new Size(160, 25),
                 Location = new Point(20, 145),
-                Value = DateTime.Now.AddHours(-2) // Default to 2 hours ago
+                Value = DateTime.Now
             };
             this.Controls.Add(_dateTimePicker);
 
