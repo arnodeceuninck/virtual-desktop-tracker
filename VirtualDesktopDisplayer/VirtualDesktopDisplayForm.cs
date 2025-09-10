@@ -288,6 +288,8 @@ namespace VirtualDesktopDisplayer
         {
             var contextMenu = new ContextMenuStrip();
 
+            contextMenu.Items.Add("Rename + Update Past Entries", null, OnRenameAndUpdatePastEntriesClick);
+            contextMenu.Items.Add(new ToolStripSeparator());
             contextMenu.Items.Add("Working Hours Estimation", null, OnWorkingHoursEstimationClick);
             contextMenu.Items.Add("Timeline View", null, OnTimelineViewClick);
             contextMenu.Items.Add(new ToolStripSeparator());
@@ -843,6 +845,151 @@ namespace VirtualDesktopDisplayer
             {
                 _applicationService.ShowError($"Error opening folder: {ex.Message}");
             }
+        }
+
+        private void OnRenameAndUpdatePastEntriesClick(object? sender, EventArgs e)
+        {
+            try
+            {
+                string currentDesktopName = _desktopNameService.GetCurrentDesktopName();
+                
+                if (string.IsNullOrWhiteSpace(currentDesktopName) || currentDesktopName.StartsWith("Error:") || currentDesktopName == "Unknown Desktop")
+                {
+                    _applicationService.ShowWarning("Cannot determine current desktop name. Please ensure the desktop has a valid name.");
+                    return;
+                }
+
+                // Show input dialog for new name
+                string? newName = ShowInputDialog("Rename Desktop & Update Past Entries", 
+                    $"Current desktop: {currentDesktopName}\n\nEnter new name:", 
+                    currentDesktopName);
+
+                if (string.IsNullOrWhiteSpace(newName) || newName == currentDesktopName)
+                {
+                    return; // User cancelled or entered same name
+                }
+
+                // Confirm the action
+                var confirmResult = MessageBox.Show(
+                    $"This will:\n\n" +
+                    $"1. Rename the current desktop from \"{currentDesktopName}\" to \"{newName}\"\n" +
+                    $"2. Update ALL entries from TODAY with the name \"{currentDesktopName}\" to use \"{newName}\"\n\n" +
+                    $"This action will modify your usage history. Are you sure you want to continue?",
+                    "Confirm Desktop Rename & Update Past Entries",
+                    MessageBoxButtons.YesNo,
+                    MessageBoxIcon.Question);
+
+                if (confirmResult != DialogResult.Yes)
+                {
+                    return;
+                }
+
+                // Perform the rename and update operation
+                bool success = _usageTracker.UpdateDesktopNameForTodaysEntries(currentDesktopName, newName);
+
+                if (success)
+                {
+                    // Update the display immediately
+                    if (desktopLabel != null)
+                    {
+                        desktopLabel.Text = newName;
+                    }
+                    _lastDesktopName = newName;
+
+                    // Track the new name in usage
+                    _usageTracker.TrackDesktopUsage(newName);
+
+                    _applicationService.ShowInformation(
+                        $"Successfully renamed desktop to \"{newName}\" and updated all today's entries.\n\n" +
+                        $"Changes applied to:\n" +
+                        $"• Current desktop name\n" +
+                        $"• All usage entries from today with the old name");
+                }
+                else
+                {
+                    _applicationService.ShowError(
+                        "Failed to rename desktop or update past entries. This could be due to:\n\n" +
+                        "• Virtual desktop rename operation failed\n" +
+                        "• File permission issues with log files\n" +
+                        "• Invalid desktop names\n\n" +
+                        "Please try again or check the log files manually.");
+                }
+            }
+            catch (Exception ex)
+            {
+                _applicationService.ShowError($"Error during rename and update operation: {ex.Message}");
+            }
+        }
+
+        /// <summary>
+        /// Shows a simple input dialog to get text input from the user.
+        /// </summary>
+        /// <param name="title">The dialog title.</param>
+        /// <param name="prompt">The prompt message.</param>
+        /// <param name="defaultValue">The default value to show in the input field.</param>
+        /// <returns>The entered text, or null if cancelled.</returns>
+        private string? ShowInputDialog(string title, string prompt, string defaultValue = "")
+        {
+            Form inputDialog = new Form()
+            {
+                Width = 400,
+                Height = 200,
+                FormBorderStyle = FormBorderStyle.FixedDialog,
+                Text = title,
+                StartPosition = FormStartPosition.CenterParent,
+                MaximizeBox = false,
+                MinimizeBox = false
+            };
+
+            Label promptLabel = new Label()
+            {
+                Left = 10,
+                Top = 10,
+                Width = 360,
+                Height = 60,
+                Text = prompt
+            };
+
+            TextBox inputTextBox = new TextBox()
+            {
+                Left = 10,
+                Top = 80,
+                Width = 360,
+                Text = defaultValue
+            };
+
+            Button okButton = new Button()
+            {
+                Text = "OK",
+                Left = 215,
+                Width = 75,
+                Top = 110,
+                DialogResult = DialogResult.OK
+            };
+
+            Button cancelButton = new Button()
+            {
+                Text = "Cancel",
+                Left = 295,
+                Width = 75,
+                Top = 110,
+                DialogResult = DialogResult.Cancel
+            };
+
+            okButton.Click += (sender, e) => { inputDialog.Close(); };
+            cancelButton.Click += (sender, e) => { inputDialog.Close(); };
+
+            inputDialog.Controls.Add(promptLabel);
+            inputDialog.Controls.Add(inputTextBox);
+            inputDialog.Controls.Add(okButton);
+            inputDialog.Controls.Add(cancelButton);
+            inputDialog.AcceptButton = okButton;
+            inputDialog.CancelButton = cancelButton;
+
+            inputTextBox.SelectAll();
+            inputTextBox.Focus();
+
+            return inputDialog.ShowDialog() == DialogResult.OK ? inputTextBox.Text.Trim() : null;
         }
     }
 }

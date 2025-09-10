@@ -268,5 +268,136 @@ namespace VirtualDesktopHelper.Services
 
             return allEntries.OrderBy(e => e.StartTime).ToList();
         }
+
+        /// <summary>
+        /// Updates the desktop name for all entries with the specified old name from today only.
+        /// This also renames the current desktop if it matches the old name.
+        /// </summary>
+        /// <param name="oldName">The current desktop name to update.</param>
+        /// <param name="newName">The new desktop name to use.</param>
+        /// <returns>True if the operation was successful (including desktop rename), false otherwise.</returns>
+        public bool UpdateDesktopNameForTodaysEntries(string oldName, string newName)
+        {
+            if (string.IsNullOrWhiteSpace(oldName) || string.IsNullOrWhiteSpace(newName))
+                return false;
+
+            lock (_lockObject)
+            {
+                try
+                {
+                    bool desktopRenameSuccess = true;
+                    DateTime today = DateTime.Today;
+
+                    // First, rename the current desktop if it matches the old name
+                    if (_currentDesktop == oldName)
+                    {
+                        desktopRenameSuccess = _desktopNameService.RenameCurrentDesktop(newName);
+                        if (desktopRenameSuccess)
+                        {
+                            _currentDesktop = newName;
+                        }
+                    }
+
+                    // Update current session entries from today
+                    bool currentSessionUpdated = false;
+                    foreach (var entry in _currentSessionUsageLog.Where(e => 
+                        e.DesktopName == oldName && e.StartTime.Date == today))
+                    {
+                        entry.DesktopName = newName;
+                        currentSessionUpdated = true;
+                    }
+
+                    // Update historical log files from today
+                    bool historicalUpdated = UpdateTodaysLogFiles(oldName, newName, today);
+
+                    // Save current session if we made changes
+                    if (currentSessionUpdated)
+                    {
+                        SaveCurrentSessionLog();
+                    }
+
+                    return desktopRenameSuccess && (currentSessionUpdated || historicalUpdated);
+                }
+                catch (Exception ex)
+                {
+                    _errorHandler.LogError(ex, "UpdateDesktopNameForTodaysEntries", new { OldName = oldName, NewName = newName });
+                    return false;
+                }
+            }
+        }
+
+        /// <summary>
+        /// Updates today's log files to replace the old desktop name with the new one.
+        /// </summary>
+        /// <param name="oldName">The old desktop name to replace.</param>
+        /// <param name="newName">The new desktop name to use.</param>
+        /// <param name="today">Today's date for filtering.</param>
+        /// <returns>True if any files were updated, false otherwise.</returns>
+        private bool UpdateTodaysLogFiles(string oldName, string newName, DateTime today)
+        {
+            bool anyFileUpdated = false;
+
+            try
+            {
+                if (!Directory.Exists(_logDirectory))
+                    return false;
+
+                var logFiles = Directory.GetFiles(_logDirectory, "VirtualDesktopUsage_*.json");
+                var todayPattern = today.ToString("yyyy-MM-dd");
+
+                foreach (var file in logFiles)
+                {
+                    var fileName = Path.GetFileName(file);
+                    if (!fileName.Contains(todayPattern))
+                        continue; // Skip files that are not from today
+
+                    try
+                    {
+                        var entries = LoadUsageLogFromFile(file);
+                        if (entries == null) continue;
+
+                        bool fileModified = false;
+                        foreach (var entry in entries.Where(e => 
+                            e.DesktopName == oldName && e.StartTime.Date == today))
+                        {
+                            entry.DesktopName = newName;
+                            fileModified = true;
+                        }
+
+                        if (fileModified)
+                        {
+                            SaveUsageLogToFile(entries, file);
+                            anyFileUpdated = true;
+                        }
+                    }
+                    catch (Exception ex)
+                    {
+                        _errorHandler.LogError(ex, "UpdateTodaysLogFiles", new { FileName = file });
+                        // Continue with other files even if one fails
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                _errorHandler.LogError(ex, "UpdateTodaysLogFiles", new { OldName = oldName, NewName = newName });
+            }
+
+            return anyFileUpdated;
+        }
+
+        /// <summary>
+        /// Saves usage log entries to the specified file.
+        /// </summary>
+        /// <param name="entries">The entries to save.</param>
+        /// <param name="filePath">The file path to save to.</param>
+        private void SaveUsageLogToFile(List<DesktopUsageEntry> entries, string filePath)
+        {
+            var options = new JsonSerializerOptions
+            {
+                WriteIndented = true
+            };
+            string json = JsonSerializer.Serialize(entries, options);
+            File.WriteAllText(filePath, json);
+        }
     }
 }

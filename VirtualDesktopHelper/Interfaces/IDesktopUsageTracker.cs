@@ -43,5 +43,14 @@ namespace VirtualDesktopHelper.Interfaces
         /// Generates a comprehensive usage report from all sessions.
         /// </summary>
         Task GenerateUsageReportAsync();
+
+        /// <summary>
+        /// Updates the desktop name for all entries with the specified old name from today only.
+        /// This also renames the current desktop if it matches the old name.
+        /// </summary>
+        /// <param name="oldName">The current desktop name to update.</param>
+        /// <param name="newName">The new desktop name to use.</param>
+        /// <returns>True if the operation was successful (including desktop rename), false otherwise.</returns>
+        bool UpdateDesktopNameForTodaysEntries(string oldName, string newName);
     }
 }
