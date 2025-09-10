@@ -70,7 +70,7 @@ namespace VirtualDesktopHelper.Configuration
         /// <summary>
         /// Name of the VirtualDesktop executable to use.
         /// </summary>
-        public string VirtualDesktopExecutableName { get; set; } = "VirtualDesktop11.exe";
+        public string VirtualDesktopExecutableName { get; set; } = "VirtualDesktop11-24H2.exe";
 
         /// <summary>
         /// Minimum duration in minutes for an activity to be kept separate during consolidation.
