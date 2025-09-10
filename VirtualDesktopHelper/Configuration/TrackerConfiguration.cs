@@ -100,6 +100,23 @@ namespace VirtualDesktopHelper.Configuration
         public bool EnableCustomConsolidation { get; set; } = true;
 
         /// <summary>
+        /// Regular expression pattern to match issue identifiers in desktop names.
+        /// Default pattern matches formats like "APP-5482", "PROJ-123", etc.
+        /// </summary>
+        public string IssueFormatRegex { get; set; } = @"\b[A-Z][A-Z0-9]+-\d+\b";
+
+        /// <summary>
+        /// URL template for issue links. Use {0} as placeholder for the issue identifier.
+        /// Example: "https://www.issuetracker.com/browse/{0}"
+        /// </summary>
+        public string IssueUrlTemplate { get; set; } = "";
+
+        /// <summary>
+        /// Whether issue tracking integration is enabled.
+        /// </summary>
+        public bool EnableIssueTracking { get; set; } = false;
+
+        /// <summary>
         /// Gets the singleton instance of the configuration.
         /// </summary>
         public static TrackerConfiguration Instance { get; } = new TrackerConfiguration();

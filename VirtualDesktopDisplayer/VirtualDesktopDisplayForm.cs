@@ -293,12 +293,15 @@ namespace VirtualDesktopDisplayer
             contextMenu.Items.Add("Working Hours Estimation", null, OnWorkingHoursEstimationClick);
             contextMenu.Items.Add("Timeline View", null, OnTimelineViewClick);
             contextMenu.Items.Add(new ToolStripSeparator());
+            contextMenu.Items.Add("Open Current Issue", null, OnOpenCurrentIssueClick);
+            contextMenu.Items.Add(new ToolStripSeparator());
             contextMenu.Items.Add("View Log JSON", null, OnViewUsageLogClick);
             contextMenu.Items.Add("Open Log Folder", null, OnOpenLogFolderClick);
             contextMenu.Items.Add(new ToolStripSeparator());
             contextMenu.Items.Add("Generate Report", null, OnGenerateReportClick);
             contextMenu.Items.Add("Configure Timely", null, OnConfigureTimelyClick);
             contextMenu.Items.Add("Configure Projects", null, OnConfigureProjectsClick);
+            contextMenu.Items.Add("Configure Issue Tracking", null, OnConfigureIssueTrackingClick);
             contextMenu.Items.Add("Copy Timely JavaScript", null, OnCopyJavaScriptClick);
             contextMenu.Items.Add("Upload to Timely", null, OnUploadToTimelyClick);
             contextMenu.Items.Add("Upload to Timely (from time...)", null, OnUploadToTimelyFromTimeClick);
@@ -990,6 +993,98 @@ namespace VirtualDesktopDisplayer
             inputTextBox.Focus();
 
             return inputDialog.ShowDialog() == DialogResult.OK ? inputTextBox.Text.Trim() : null;
+        }
+
+        private void OnOpenCurrentIssueClick(object? sender, EventArgs e)
+        {
+            try
+            {
+                var issueService = new IssueTrackingService(_config);
+                
+                if (!issueService.IsConfigured())
+                {
+                    var result = MessageBox.Show(
+                        "Issue tracking is not configured. Would you like to configure it now?\n\n" +
+                        "You'll need to provide:\n" +
+                        "- Issue format (regex pattern)\n" +
+                        "- Issue URL template\n\n" +
+                        "Example patterns:\n" +
+                        "- \\b[A-Z][A-Z0-9]+-\\d+\\b for JIRA-style (APP-5482)\n" +
+                        "- #\\d+ for GitHub-style (#123)",
+                        "Issue Tracking Configuration Required",
+                        MessageBoxButtons.YesNo,
+                        MessageBoxIcon.Question);
+
+                    if (result == DialogResult.Yes)
+                    {
+                        ShowIssueTrackingConfigurationDialog();
+                        return;
+                    }
+                    else
+                    {
+                        _applicationService.ShowInformation("Issue tracking configuration cancelled.");
+                        return;
+                    }
+                }
+
+                string currentDesktopName = _desktopNameService.GetCurrentDesktopName();
+                
+                if (string.IsNullOrWhiteSpace(currentDesktopName) || currentDesktopName.StartsWith("Error:"))
+                {
+                    _applicationService.ShowWarning("Cannot determine current desktop name.");
+                    return;
+                }
+
+                string? issueUrl = issueService.GetIssueUrlFromDesktopName(currentDesktopName);
+                
+                if (issueUrl == null)
+                {
+                    _applicationService.ShowInformation($"No issue identifier found in desktop name: \"{currentDesktopName}\"\n\n" +
+                        "Make sure your desktop name contains an issue identifier that matches the configured pattern.");
+                    return;
+                }
+
+                // Open the URL in the default browser
+                try
+                {
+                    System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo
+                    {
+                        FileName = issueUrl,
+                        UseShellExecute = true
+                    });
+                }
+                catch (Exception ex)
+                {
+                    _applicationService.ShowError($"Failed to open issue URL: {issueUrl}\n\nError: {ex.Message}");
+                }
+            }
+            catch (Exception ex)
+            {
+                _applicationService.ShowError($"Error opening current issue: {ex.Message}");
+            }
+        }
+
+        private void OnConfigureIssueTrackingClick(object? sender, EventArgs e)
+        {
+            try
+            {
+                ShowIssueTrackingConfigurationDialog();
+            }
+            catch (Exception ex)
+            {
+                _applicationService.ShowError($"Error opening issue tracking configuration: {ex.Message}");
+            }
+        }
+
+        private void ShowIssueTrackingConfigurationDialog()
+        {
+            using (var configForm = new IssueTrackingConfigurationForm())
+            {
+                if (configForm.ShowDialog() == DialogResult.OK)
+                {
+                    _applicationService.ShowInformation("Issue tracking configuration saved successfully!");
+                }
+            }
         }
     }
 }

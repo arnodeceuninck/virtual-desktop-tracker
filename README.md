@@ -10,6 +10,7 @@ The **VirtualDesktopDisplayer** is the main application that provides:
 - **Automatic Time Tracking**: Tracks virtual desktop usage with detailed timestamps, duration metrics, and generates comprehensive JSON reports
 - **Smart Project Detection**: Automatically detects and maps projects based on desktop name keywords
 - **One-click Desktop Renaming**: Easily modify virtual desktop names with a single click
+- **Issue Tracking Integration**: Extract issue identifiers from desktop names and open them directly in your browser with configurable patterns and URL templates
 - **Timely Integration**: Automatically sync your desktop usage data to Timely for seamless time tracking
 
 ## 📸 Screenshots
@@ -176,6 +177,14 @@ Set up Timely integration for automatic time tracking by configuring:
 - API credentials
 - Workspace ID
 - Default project mappings
+
+### Issue Tracking Integration
+Configure issue tracking integration to link desktop names with your issue tracker:
+- Define custom regex patterns to match issue identifiers (e.g., `APP-5482`, `#123`)
+- Set URL templates for your issue tracker (JIRA, GitHub, etc.)
+- One-click access to issues from desktop names
+
+For detailed setup instructions, see [ISSUE_TRACKING.md](ISSUE_TRACKING.md).
 
 ## 🏗️ Architecture
 
