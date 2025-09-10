@@ -76,6 +76,18 @@ namespace VirtualDesktopHelper.Services
         /// <returns>Result of the upload operation.</returns>
         public async Task<TimelyUploadResult> UploadToTimelyAsync(List<DesktopUsageEntry> allEntries, bool currentDayOnly = true)
         {
+            return await UploadToTimelyAsync(allEntries, currentDayOnly, null);
+        }
+
+        /// <summary>
+        /// Uploads desktop usage data directly to Timely via API with optional time filtering.
+        /// </summary>
+        /// <param name="allEntries">All desktop usage entries.</param>
+        /// <param name="currentDayOnly">If true, only uploads entries from the current day.</param>
+        /// <param name="fromTime">If specified, only uploads entries ending after this time.</param>
+        /// <returns>Result of the upload operation.</returns>
+        public async Task<TimelyUploadResult> UploadToTimelyAsync(List<DesktopUsageEntry> allEntries, bool currentDayOnly = true, DateTime? fromTime = null)
+        {
             var result = new TimelyUploadResult();
             
             try
@@ -94,6 +106,12 @@ namespace VirtualDesktopHelper.Services
 
                 // Filter entries for current day if requested
                 var filteredEntries = currentDayOnly ? DesktopUsageUtilities.FilterCurrentDayEntries(entriesWithEndTime) : entriesWithEndTime;
+
+                // Filter entries from specific time if requested
+                if (fromTime.HasValue)
+                {
+                    filteredEntries = DesktopUsageUtilities.FilterEntriesFromTime(filteredEntries, fromTime.Value);
+                }
 
                 if (!filteredEntries.Any())
                 {

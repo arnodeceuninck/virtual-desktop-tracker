@@ -23,11 +23,29 @@ namespace VirtualDesktopHelper.Services
 
             foreach (var entry in entries)
             {
+                DateTime endTime;
+                if (entry.EndTime.HasValue)
+                {
+                    endTime = entry.EndTime.Value;
+                }
+                else
+                {
+                    // If start time is not today, use end of start day instead of now
+                    if (entry.StartTime.Date != DateTime.Today)
+                    {
+                        endTime = entry.StartTime.Date.AddDays(1).AddTicks(-1); // End of start day
+                    }
+                    else
+                    {
+                        endTime = now;
+                    }
+                }
+
                 processedEntries.Add(new DesktopUsageEntry
                 {
                     DesktopName = entry.DesktopName,
                     StartTime = entry.StartTime,
-                    EndTime = entry.EndTime ?? now
+                    EndTime = endTime
                 });
             }
 
@@ -56,6 +74,40 @@ namespace VirtualDesktopHelper.Services
             var startOfDay = targetDate.Date;
             var endOfDay = startOfDay.AddDays(1);
             return allEntries.Where(entry => entry.StartTime >= startOfDay && entry.StartTime < endOfDay).ToList();
+        }
+
+        /// <summary>
+        /// Filters entries to only include those with an end time after the specified moment.
+        /// This is designed to work with current-day-only filtering to allow uploading 
+        /// from a specific time within the current day.
+        /// For entries with null EndTime (still active), they are only included if they started today.
+        /// </summary>
+        /// <param name="allEntries">All desktop usage entries.</param>
+        /// <param name="fromTime">The cutoff time - only entries ending after this time will be included.</param>
+        /// <returns>Entries filtered to only include those ending after the specified time.</returns>
+        public static List<DesktopUsageEntry> FilterEntriesFromTime(List<DesktopUsageEntry> allEntries, DateTime fromTime)
+        {
+            var today = DateTime.Today;
+            
+            return allEntries.Where(entry => 
+            {
+                // Only consider entries from today when using time filtering
+                if (entry.StartTime.Date != today)
+                {
+                    return false;
+                }
+
+                if (entry.EndTime.HasValue)
+                {
+                    // Entry has completed - check if it ended after the fromTime
+                    return entry.EndTime.Value > fromTime;
+                }
+                else
+                {
+                    // Entry is still active (EndTime is null) - always include
+                    return entry.StartTime > fromTime;
+                }
+            }).ToList();
         }
 
         /// <summary>
