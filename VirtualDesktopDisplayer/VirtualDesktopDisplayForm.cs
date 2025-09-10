@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Drawing;
 using System.IO;
 using System.Linq;
@@ -289,6 +290,14 @@ namespace VirtualDesktopDisplayer
             var contextMenu = new ContextMenuStrip();
 
             contextMenu.Items.Add("Rename + Update Past Entries", null, OnRenameAndUpdatePastEntriesClick);
+            
+            // Add submenu for renaming to previously used desktop names from today
+            var recentNamesItem = AddRecentDesktopNamesSubmenu();
+            if (recentNamesItem != null)
+            {
+                contextMenu.Items.Add(recentNamesItem);
+            }
+            
             contextMenu.Items.Add(new ToolStripSeparator());
             contextMenu.Items.Add("Working Hours Estimation", null, OnWorkingHoursEstimationClick);
             contextMenu.Items.Add("Timeline View", null, OnTimelineViewClick);
@@ -309,6 +318,159 @@ namespace VirtualDesktopDisplayer
             contextMenu.Items.Add("Exit", null, (s, args) => _applicationService.ExitApplication());
 
             contextMenu.Show(this, location);
+        }
+
+        /// <summary>
+        /// Creates a submenu item for renaming to previously used desktop names from today.
+        /// Excludes "Desktop n" and "Screen Off" patterns as specified.
+        /// </summary>
+        /// <returns>ToolStripMenuItem if there are recent names, null otherwise</returns>
+        private ToolStripMenuItem? AddRecentDesktopNamesSubmenu()
+        {
+            try
+            {
+                var recentNames = GetTodaysUniqueDesktopNames();
+                
+                if (recentNames.Count == 0)
+                {
+                    return null; // No recent names to display
+                }
+
+                var submenuItem = new ToolStripMenuItem("Rename to Recent...");
+                
+                foreach (var name in recentNames)
+                {
+                    var menuItem = new ToolStripMenuItem(name);
+                    menuItem.Click += (sender, e) => OnRenameToRecentNameClick(name);
+                    submenuItem.DropDownItems.Add(menuItem);
+                }
+                
+                return submenuItem;
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"Error creating recent names submenu: {ex.Message}");
+                return null;
+            }
+        }
+
+        /// <summary>
+        /// Gets unique desktop names used today, excluding the current desktop and filtered patterns.
+        /// </summary>
+        /// <returns>List of unique desktop names from today</returns>
+        private List<string> GetTodaysUniqueDesktopNames()
+        {
+            try
+            {
+                var today = DateTime.Today;
+                var currentDesktopName = _desktopNameService.GetCurrentDesktopName();
+                
+                // Get all usage history
+                var allEntries = _usageTracker.GetAllUsageHistory();
+                
+                // Filter to today's entries and get unique names
+                var uniqueNames = allEntries
+                    .Where(entry => entry.StartTime.Date == today)
+                    .Select(entry => entry.DesktopName)
+                    .Where(name => !string.IsNullOrWhiteSpace(name))
+                    .Where(name => name != currentDesktopName) // Exclude current desktop
+                    .Where(name => !IsExcludedDesktopName(name)) // Exclude patterns
+                    .Distinct()
+                    .OrderBy(name => name)
+                    .ToList();
+                
+                return uniqueNames;
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"Error getting today's unique desktop names: {ex.Message}");
+                return new List<string>();
+            }
+        }
+
+        /// <summary>
+        /// Checks if a desktop name should be excluded from the recent names list.
+        /// Excludes "Desktop n" and "Screen Off" patterns as requested.
+        /// </summary>
+        /// <param name="desktopName">The desktop name to check</param>
+        /// <returns>True if the name should be excluded, false otherwise</returns>
+        private bool IsExcludedDesktopName(string desktopName)
+        {
+            if (string.IsNullOrWhiteSpace(desktopName))
+                return true;
+
+            // Exclude "Desktop n" patterns (e.g., "Desktop 1", "Desktop 2", etc.)
+            if (System.Text.RegularExpressions.Regex.IsMatch(desktopName, @"^Desktop \d+$", System.Text.RegularExpressions.RegexOptions.IgnoreCase))
+                return true;
+
+            // Exclude "Screen Off" pattern
+            if (string.Equals(desktopName, "Screen Off", StringComparison.OrdinalIgnoreCase))
+                return true;
+
+            return false;
+        }
+
+        /// <summary>
+        /// Handles clicking on a recent desktop name to rename the current desktop.
+        /// </summary>
+        /// <param name="newName">The name to rename the current desktop to</param>
+        private void OnRenameToRecentNameClick(string newName)
+        {
+            try
+            {
+                string currentDesktopName = _desktopNameService.GetCurrentDesktopName();
+                
+                if (string.IsNullOrWhiteSpace(currentDesktopName) || currentDesktopName.StartsWith("Error:") || currentDesktopName == "Unknown Desktop")
+                {
+                    _applicationService.ShowWarning("Cannot determine current desktop name. Please ensure the desktop has a valid name.");
+                    return;
+                }
+
+                if (currentDesktopName == newName)
+                {
+                    _applicationService.ShowWarning($"The current desktop is already named \"{newName}\".");
+                    return;
+                }
+
+                // Confirm the action
+                var confirmResult = MessageBox.Show(
+                    $"Rename the current desktop from \"{currentDesktopName}\" to \"{newName}\"?",
+                    "Confirm Desktop Rename",
+                    MessageBoxButtons.YesNo,
+                    MessageBoxIcon.Question);
+
+                if (confirmResult != DialogResult.Yes)
+                {
+                    return;
+                }
+
+                // Perform the rename operation
+                bool success = _desktopNameService.RenameCurrentDesktop(newName);
+
+                if (success)
+                {
+                    // Update the display immediately
+                    if (desktopLabel != null)
+                    {
+                        desktopLabel.Text = newName;
+                    }
+                    _lastDesktopName = newName;
+                    
+                    // Track the usage change
+                    _usageTracker.TrackDesktopUsage(newName);
+                    
+                    _applicationService.ShowInformation($"Desktop successfully renamed to \"{newName}\".");
+                }
+                else
+                {
+                    _applicationService.ShowError("Failed to rename desktop. Please try again.");
+                }
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"Error renaming to recent name: {ex.Message}");
+                _applicationService.ShowError($"An error occurred while renaming the desktop: {ex.Message}");
+            }
         }
 
         private void ShowRenameTextBox()
