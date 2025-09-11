@@ -327,7 +327,10 @@ namespace VirtualDesktopDisplayer
             contextMenu.Items.Add(new ToolStripSeparator());
             contextMenu.Items.Add("Exit", null, (s, args) => _applicationService.ExitApplication());
 
-            contextMenu.Show(this, location);
+            // Convert the local form coordinates to screen coordinates
+            // This ensures the context menu appears on the correct screen near the form
+            Point screenLocation = this.PointToScreen(location);
+            contextMenu.Show(screenLocation);
         }
 
         /// <summary>
