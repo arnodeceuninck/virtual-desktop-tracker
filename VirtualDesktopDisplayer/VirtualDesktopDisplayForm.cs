@@ -297,6 +297,16 @@ namespace VirtualDesktopDisplayer
             {
                 contextMenu.Items.Add(recentNamesItem);
             }
+
+            // Add submenu for jumping to specific desktops
+            var jumpToDesktopItem = AddJumpToDesktopSubmenu();
+            if (jumpToDesktopItem != null)
+            {
+                contextMenu.Items.Add(jumpToDesktopItem);
+            }
+
+            // Add option to create new desktop
+            contextMenu.Items.Add("Create New Desktop", null, OnCreateNewDesktopClick);
             
             contextMenu.Items.Add(new ToolStripSeparator());
             contextMenu.Items.Add("Working Hours Estimation", null, OnWorkingHoursEstimationClick);
@@ -411,6 +421,49 @@ namespace VirtualDesktopDisplayer
         }
 
         /// <summary>
+        /// Creates a submenu item for jumping to specific virtual desktops.
+        /// Shows all available virtual desktops except the current one.
+        /// </summary>
+        /// <returns>ToolStripMenuItem if there are other desktops available, null otherwise</returns>
+        private ToolStripMenuItem? AddJumpToDesktopSubmenu()
+        {
+            try
+            {
+                var allDesktopNames = _desktopNameService.GetAllDesktopNames();
+                var currentDesktopName = _desktopNameService.GetCurrentDesktopName();
+                
+                // Filter out the current desktop and any error states
+                var availableDesktops = allDesktopNames
+                    .Where(name => !string.IsNullOrWhiteSpace(name))
+                    .Where(name => name != currentDesktopName)
+                    .Where(name => !name.StartsWith("Error:") && name != "Unknown Desktop" && name != "Screen Off")
+                    .OrderBy(name => name)
+                    .ToList();
+                
+                if (availableDesktops.Count == 0)
+                {
+                    return null; // No other desktops available
+                }
+
+                var submenuItem = new ToolStripMenuItem("Jump to Desktop...");
+                
+                foreach (var desktopName in availableDesktops)
+                {
+                    var menuItem = new ToolStripMenuItem(desktopName);
+                    menuItem.Click += (sender, e) => OnJumpToDesktopClick(desktopName);
+                    submenuItem.DropDownItems.Add(menuItem);
+                }
+                
+                return submenuItem;
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"Error creating jump to desktop submenu: {ex.Message}");
+                return null;
+            }
+        }
+
+        /// <summary>
         /// Handles clicking on a recent desktop name to rename the current desktop.
         /// </summary>
         /// <param name="newName">The name to rename the current desktop to</param>
@@ -470,6 +523,85 @@ namespace VirtualDesktopDisplayer
             {
                 System.Diagnostics.Debug.WriteLine($"Error renaming to recent name: {ex.Message}");
                 _applicationService.ShowError($"An error occurred while renaming the desktop: {ex.Message}");
+            }
+        }
+
+        /// <summary>
+        /// Handles clicking on a desktop name to jump to that virtual desktop.
+        /// </summary>
+        /// <param name="desktopName">The name of the desktop to switch to</param>
+        private void OnJumpToDesktopClick(string desktopName)
+        {
+            try
+            {
+                if (string.IsNullOrWhiteSpace(desktopName))
+                {
+                    _applicationService.ShowWarning("Invalid desktop name specified.");
+                    return;
+                }
+
+                // Perform the desktop switch without confirmation
+                bool success = _desktopNameService.SwitchToDesktop(desktopName);
+
+                if (success)
+                {
+                    // Update the display immediately to reflect the switch
+                    if (desktopLabel != null)
+                    {
+                        desktopLabel.Text = desktopName;
+                    }
+                    _lastDesktopName = desktopName;
+                    
+                    // Track the usage change
+                    _usageTracker.TrackDesktopUsage(desktopName);
+                }
+                else
+                {
+                    _applicationService.ShowError("Failed to switch to desktop. Please try again.");
+                }
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"Error jumping to desktop: {ex.Message}");
+                _applicationService.ShowError($"An error occurred while switching to the desktop: {ex.Message}");
+            }
+        }
+
+        /// <summary>
+        /// Handles clicking on "Create New Desktop" to create a new virtual desktop and switch to it.
+        /// </summary>
+        /// <param name="sender">The sender object</param>
+        /// <param name="e">Event arguments</param>
+        private void OnCreateNewDesktopClick(object? sender, EventArgs e)
+        {
+            try
+            {
+                // Create new desktop and switch to it
+                bool success = _desktopNameService.CreateNewDesktop(switchToNew: true);
+
+                if (success)
+                {
+                    // Get the current desktop name after switching to update the display
+                    string newDesktopName = _desktopNameService.GetCurrentDesktopName();
+                    
+                    if (desktopLabel != null && !string.IsNullOrWhiteSpace(newDesktopName))
+                    {
+                        desktopLabel.Text = newDesktopName;
+                    }
+                    _lastDesktopName = newDesktopName;
+                    
+                    // Track the usage change
+                    _usageTracker.TrackDesktopUsage(newDesktopName);
+                }
+                else
+                {
+                    _applicationService.ShowError("Failed to create new desktop. Please try again.");
+                }
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"Error creating new desktop: {ex.Message}");
+                _applicationService.ShowError($"An error occurred while creating a new desktop: {ex.Message}");
             }
         }
 

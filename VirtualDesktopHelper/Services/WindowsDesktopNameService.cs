@@ -1,6 +1,8 @@
 using System;
+using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
+using System.Linq;
 using System.Threading.Tasks;
 using VirtualDesktopHelper.Configuration;
 using VirtualDesktopHelper.Interfaces;
@@ -55,6 +57,40 @@ namespace VirtualDesktopHelper.Services
                 string executablePath = GetVirtualDesktopExecutablePath();
                 return ExecuteRenameCommand(executablePath, newName);
             }, "RenameCurrentDesktop", _config.SubprocessRetryCount, _config.SubprocessRetryDelay);
+        }
+
+        public List<string> GetAllDesktopNames()
+        {
+            return _errorHandler.ExecuteWithRetry(() =>
+            {
+                string executablePath = GetVirtualDesktopExecutablePath();
+                string output = ExecuteVirtualDesktopCommand(executablePath, "/LIST");
+                return ParseAllDesktopNamesFromOutput(output);
+            }, "GetAllDesktopNames", _config.SubprocessRetryCount, _config.SubprocessRetryDelay);
+        }
+
+        public bool SwitchToDesktop(string desktopName)
+        {
+            if (string.IsNullOrWhiteSpace(desktopName))
+            {
+                _errorHandler.LogWarning("Empty or null desktop name provided", "SwitchToDesktop");
+                return false;
+            }
+
+            return _errorHandler.ExecuteWithRetry(() =>
+            {
+                string executablePath = GetVirtualDesktopExecutablePath();
+                return ExecuteSwitchCommand(executablePath, desktopName);
+            }, "SwitchToDesktop", _config.SubprocessRetryCount, _config.SubprocessRetryDelay);
+        }
+
+        public bool CreateNewDesktop(bool switchToNew = true)
+        {
+            return _errorHandler.ExecuteWithRetry(() =>
+            {
+                string executablePath = GetVirtualDesktopExecutablePath();
+                return ExecuteCreateNewDesktopCommand(executablePath, switchToNew);
+            }, "CreateNewDesktop", _config.SubprocessRetryCount, _config.SubprocessRetryDelay);
         }
 
         private string GetCurrentDesktopNameFromSubprocess()
@@ -170,6 +206,73 @@ namespace VirtualDesktopHelper.Services
             }
 
             return "";
+        }
+
+        private static List<string> ParseAllDesktopNamesFromOutput(string output)
+        {
+            var desktopNames = new List<string>();
+            
+            if (string.IsNullOrEmpty(output))
+                return desktopNames;
+
+            string[] lines = output.Split('\n', StringSplitOptions.RemoveEmptyEntries);
+
+            foreach (string line in lines)
+            {
+                string trimmedLine = line.Trim();
+                
+                // Skip header lines and empty lines
+                if (string.IsNullOrEmpty(trimmedLine) || 
+                    trimmedLine.StartsWith("Virtual desktops:") ||
+                    trimmedLine.StartsWith("-----------------") ||
+                    trimmedLine.StartsWith("Count of desktops:"))
+                {
+                    continue;
+                }
+
+                // Extract desktop name, removing "(visible)" suffix if present
+                string desktopName = trimmedLine.EndsWith("(visible)") 
+                    ? trimmedLine.Substring(0, trimmedLine.Length - "(visible)".Length).Trim()
+                    : trimmedLine;
+
+                if (!string.IsNullOrEmpty(desktopName))
+                {
+                    desktopNames.Add(desktopName);
+                }
+            }
+
+            return desktopNames;
+        }
+
+        private bool ExecuteSwitchCommand(string executablePath, string desktopName)
+        {
+            try
+            {
+                // Use the /Switch command with the desktop name
+                string output = ExecuteVirtualDesktopCommand(executablePath, $"/Switch:\"{desktopName}\"");
+                return true; // If no exception was thrown, assume success
+            }
+            catch (Exception ex)
+            {
+                _errorHandler.LogError(ex, "ExecuteSwitchCommand", new { DesktopName = desktopName });
+                return false;
+            }
+        }
+
+        private bool ExecuteCreateNewDesktopCommand(string executablePath, bool switchToNew)
+        {
+            try
+            {
+                // Use /New to create a new desktop, and optionally /Switch to switch to it
+                string command = switchToNew ? "/New /Switch" : "/New";
+                string output = ExecuteVirtualDesktopCommand(executablePath, command);
+                return true; // If no exception was thrown, assume success
+            }
+            catch (Exception ex)
+            {
+                _errorHandler.LogError(ex, "ExecuteCreateNewDesktopCommand", new { SwitchToNew = switchToNew });
+                return false;
+            }
         }
     }
 }
