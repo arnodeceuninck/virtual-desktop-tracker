@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Drawing;
 using System.IO;
 using System.Linq;
+using System.Threading.Tasks;
 using System.Windows.Forms;
 using VirtualDesktopDisplayer.Services;
 using VirtualDesktopHelper;
@@ -291,19 +292,14 @@ namespace VirtualDesktopDisplayer
 
             contextMenu.Items.Add("Rename + Update Past Entries", null, OnRenameAndUpdatePastEntriesClick);
             
-            // Add submenu for renaming to previously used desktop names from today
-            var recentNamesItem = AddRecentDesktopNamesSubmenu();
-            if (recentNamesItem != null)
-            {
-                contextMenu.Items.Add(recentNamesItem);
-            }
+            // Add placeholder submenu items that will be populated asynchronously
+            var recentNamesItem = new ToolStripMenuItem("Rename to Recent...");
+            recentNamesItem.DropDownItems.Add("Loading...", null, null);
+            contextMenu.Items.Add(recentNamesItem);
 
-            // Add submenu for jumping to specific desktops
-            var jumpToDesktopItem = AddJumpToDesktopSubmenu();
-            if (jumpToDesktopItem != null)
-            {
-                contextMenu.Items.Add(jumpToDesktopItem);
-            }
+            var jumpToDesktopItem = new ToolStripMenuItem("Jump to Desktop...");
+            jumpToDesktopItem.DropDownItems.Add("Loading...", null, null);
+            contextMenu.Items.Add(jumpToDesktopItem);
 
             // Add option to create new desktop
             contextMenu.Items.Add("Create New Desktop", null, OnCreateNewDesktopClick);
@@ -334,6 +330,117 @@ namespace VirtualDesktopDisplayer
             // This ensures the context menu appears on the correct screen near the form
             Point screenLocation = this.PointToScreen(location);
             contextMenu.Show(screenLocation);
+
+            // Asynchronously load the submenu items
+            _ = Task.Run(async () => await LoadSubmenuItemsAsync(recentNamesItem, jumpToDesktopItem));
+        }
+
+        /// <summary>
+        /// Asynchronously loads the submenu items for recent names and jump to desktop menus.
+        /// This prevents blocking the UI when showing the context menu.
+        /// </summary>
+        /// <param name="recentNamesItem">The recent names menu item to populate</param>
+        /// <param name="jumpToDesktopItem">The jump to desktop menu item to populate</param>
+        private async Task LoadSubmenuItemsAsync(ToolStripMenuItem recentNamesItem, ToolStripMenuItem jumpToDesktopItem)
+        {
+            try
+            {
+                // Load recent names in background
+                var recentNamesTask = Task.Run(() => GetTodaysUniqueDesktopNames());
+                
+                // Load available desktops in background  
+                var availableDesktopsTask = Task.Run(() => GetAvailableDesktops());
+
+                // Wait for both tasks to complete
+                var recentNames = await recentNamesTask;
+                var availableDesktops = await availableDesktopsTask;
+
+                // Update UI on the main thread
+                if (recentNamesItem.IsDisposed || jumpToDesktopItem.IsDisposed)
+                    return;
+
+                this.Invoke((Action)(() =>
+                {
+                    // Update recent names menu
+                    recentNamesItem.DropDownItems.Clear();
+                    if (recentNames.Count > 0)
+                    {
+                        foreach (var name in recentNames)
+                        {
+                            var menuItem = new ToolStripMenuItem(name);
+                            menuItem.Click += (sender, e) => OnRenameToRecentNameClick(name);
+                            recentNamesItem.DropDownItems.Add(menuItem);
+                        }
+                    }
+                    else
+                    {
+                        var noItemsMenuItem = new ToolStripMenuItem("No recent names") { Enabled = false };
+                        recentNamesItem.DropDownItems.Add(noItemsMenuItem);
+                    }
+
+                    // Update jump to desktop menu
+                    jumpToDesktopItem.DropDownItems.Clear();
+                    if (availableDesktops.Count > 0)
+                    {
+                        foreach (var desktopName in availableDesktops)
+                        {
+                            var menuItem = new ToolStripMenuItem(desktopName);
+                            menuItem.Click += (sender, e) => OnJumpToDesktopClick(desktopName);
+                            jumpToDesktopItem.DropDownItems.Add(menuItem);
+                        }
+                    }
+                    else
+                    {
+                        var noItemsMenuItem = new ToolStripMenuItem("No other desktops") { Enabled = false };
+                        jumpToDesktopItem.DropDownItems.Add(noItemsMenuItem);
+                    }
+                }));
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"Error loading submenu items asynchronously: {ex.Message}");
+                
+                // Update UI to show error on main thread
+                if (!recentNamesItem.IsDisposed && !jumpToDesktopItem.IsDisposed)
+                {
+                    this.Invoke((Action)(() =>
+                    {
+                        recentNamesItem.DropDownItems.Clear();
+                        recentNamesItem.DropDownItems.Add(new ToolStripMenuItem("Error loading") { Enabled = false });
+                        
+                        jumpToDesktopItem.DropDownItems.Clear();
+                        jumpToDesktopItem.DropDownItems.Add(new ToolStripMenuItem("Error loading") { Enabled = false });
+                    }));
+                }
+            }
+        }
+
+        /// <summary>
+        /// Gets the list of available desktops excluding the current one.
+        /// </summary>
+        /// <returns>List of available desktop names</returns>
+        private List<string> GetAvailableDesktops()
+        {
+            try
+            {
+                var allDesktopNames = _desktopNameService.GetAllDesktopNames();
+                var currentDesktopName = _desktopNameService.GetCurrentDesktopName();
+                
+                // Filter out the current desktop and any error states
+                var availableDesktops = allDesktopNames
+                    .Where(name => !string.IsNullOrWhiteSpace(name))
+                    .Where(name => name != currentDesktopName)
+                    .Where(name => !name.StartsWith("Error:") && name != "Unknown Desktop" && name != "Screen Off")
+                    .OrderBy(name => name)
+                    .ToList();
+                
+                return availableDesktops;
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"Error getting available desktops: {ex.Message}");
+                return new List<string>();
+            }
         }
 
         /// <summary>
