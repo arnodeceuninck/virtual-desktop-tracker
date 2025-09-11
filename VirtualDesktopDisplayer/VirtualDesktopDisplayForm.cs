@@ -318,9 +318,12 @@ namespace VirtualDesktopDisplayer
             contextMenu.Items.Add("Open Log Folder", null, OnOpenLogFolderClick);
             contextMenu.Items.Add(new ToolStripSeparator());
             contextMenu.Items.Add("Generate Report", null, OnGenerateReportClick);
-            contextMenu.Items.Add("Configure Timely", null, OnConfigureTimelyClick);
-            contextMenu.Items.Add("Configure Projects", null, OnConfigureProjectsClick);
-            contextMenu.Items.Add("Configure Issue Tracking", null, OnConfigureIssueTrackingClick);
+            // Group configure options under a single 'Configure' menu
+            var configureMenu = new ToolStripMenuItem("Configure");
+            configureMenu.DropDownItems.Add("Timely", null, OnConfigureTimelyClick);
+            configureMenu.DropDownItems.Add("Projects", null, OnConfigureProjectsClick);
+            configureMenu.DropDownItems.Add("Issue Tracking", null, OnConfigureIssueTrackingClick);
+            contextMenu.Items.Add(configureMenu);
             contextMenu.Items.Add("Copy Timely JavaScript", null, OnCopyJavaScriptClick);
             contextMenu.Items.Add("Upload to Timely", null, OnUploadToTimelyClick);
             contextMenu.Items.Add("Upload to Timely (from time...)", null, OnUploadToTimelyFromTimeClick);
