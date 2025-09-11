@@ -90,17 +90,20 @@ namespace VirtualDesktopHelper.Configuration
                 new ProjectMapping
                 {
                     Project = new ProjectInfo { Id = 4928536, Name = "DWH - Technisch Onderhoud Selene" },
-                    Keywords = new List<string> { "simon", "selene" }
+                    Keywords = new List<string> { "simon", "selene" },
+                    Order = 0
                 },
                 new ProjectMapping
                 {
                     Project = new ProjectInfo { Id = 4928536, Name = "DWH - Data Anonimisatie en Archivering" },
-                    Keywords = new List<string> { "archief", "anonimisering", "obfuscation" }
+                    Keywords = new List<string> { "archief", "anonimisering", "obfuscation" },
+                    Order = 1
                 },
                 new ProjectMapping
                 {
                     Project = new ProjectInfo { Id = 4927456, Name = "DWH - AI/ML Technische Verbeteringen" },
-                    Keywords = new List<string> { "docker", "azureml", "staatsblad" }
+                    Keywords = new List<string> { "docker", "azureml", "staatsblad" },
+                    Order = 2
                 }
             };
         }
@@ -191,8 +194,8 @@ namespace VirtualDesktopHelper.Configuration
             if (string.IsNullOrWhiteSpace(desktopName))
                 return DefaultProject;
 
-            // Check each project mapping for keyword matches
-            foreach (var mapping in ProjectMappings)
+            // Check each project mapping for keyword matches, ordered by priority
+            foreach (var mapping in ProjectMappings.OrderBy(m => m.Order))
             {
                 if (mapping.MatchesKeywords(desktopName))
                 {
@@ -220,7 +223,8 @@ namespace VirtualDesktopHelper.Configuration
                     Name = projectName,
                     LabelIds = labelIds ?? new List<int>()
                 },
-                Keywords = keywords
+                Keywords = keywords,
+                Order = ProjectMappings.Count // Add to end by default
             };
 
             ProjectMappings.Add(mapping);
@@ -320,6 +324,7 @@ namespace VirtualDesktopHelper.Configuration
     {
         public ProjectInfo Project { get; set; } = new ProjectInfo();
         public List<string> Keywords { get; set; } = new List<string>();
+        public int Order { get; set; } = 0;
 
         /// <summary>
         /// Determines if any of the keywords match the given text (case insensitive).

@@ -18,6 +18,8 @@ namespace VirtualDesktopDisplayer
         private DataGridView _projectGrid;
         private Button _addButton;
         private Button _removeButton;
+        private Button _moveUpButton;
+        private Button _moveDownButton;
         private Button _saveButton;
         private Button _cancelButton;
         private GroupBox _defaultProjectGroup;
@@ -27,6 +29,10 @@ namespace VirtualDesktopDisplayer
         private Button _selectDefaultProjectButton;
         private Button _selectDefaultLabelsButton;
         private Label _defaultProjectWarningLabel;
+        private GroupBox _testGroup;
+        private TextBox _testDesktopNameTextBox;
+        private Button _testButton;
+        private Label _testResultLabel;
 
         public ProjectConfigurationForm()
         {
@@ -38,7 +44,7 @@ namespace VirtualDesktopDisplayer
         private void InitializeComponent()
         {
             this.Text = "Project Configuration";
-            this.Size = new Size(1000, 600);
+            this.Size = new Size(1200, 700);
             this.StartPosition = FormStartPosition.CenterParent;
             this.FormBorderStyle = FormBorderStyle.FixedDialog;
             this.MaximizeBox = false;
@@ -48,7 +54,7 @@ namespace VirtualDesktopDisplayer
             {
                 Dock = DockStyle.Fill,
                 ColumnCount = 1,
-                RowCount = 3,
+                RowCount = 4,
                 Padding = new Padding(10)
             };
 
@@ -141,6 +147,14 @@ namespace VirtualDesktopDisplayer
             // Add columns
             _projectGrid.Columns.Add(new DataGridViewTextBoxColumn
             {
+                Name = "Order",
+                HeaderText = "Order",
+                Width = 60,
+                DataPropertyName = "Order"
+            });
+
+            _projectGrid.Columns.Add(new DataGridViewTextBoxColumn
+            {
                 Name = "ProjectId",
                 HeaderText = "Project ID",
                 Width = 100,
@@ -173,6 +187,54 @@ namespace VirtualDesktopDisplayer
 
             gridPanel.Controls.Add(_projectGrid);
             gridPanel.Controls.Add(gridLabel);
+
+            // Test section
+            _testGroup = new GroupBox
+            {
+                Text = "Test Project Detection",
+                Dock = DockStyle.Fill
+            };
+
+            var testPanel = new TableLayoutPanel
+            {
+                Dock = DockStyle.Fill,
+                ColumnCount = 3,
+                RowCount = 2,
+                Padding = new Padding(10)
+            };
+
+            testPanel.Controls.Add(new Label { Text = "Desktop Name:", Anchor = AnchorStyles.Left }, 0, 0);
+            _testDesktopNameTextBox = new TextBox 
+            { 
+                Anchor = AnchorStyles.Left | AnchorStyles.Right,
+                PlaceholderText = "Enter desktop name to test..."
+            };
+            testPanel.Controls.Add(_testDesktopNameTextBox, 1, 0);
+
+            _testButton = new Button
+            {
+                Text = "Test",
+                Anchor = AnchorStyles.Left | AnchorStyles.Right,
+                Height = 30
+            };
+            _testButton.Click += TestButton_Click;
+            testPanel.Controls.Add(_testButton, 2, 0);
+
+            _testResultLabel = new Label
+            {
+                Text = "",
+                Anchor = AnchorStyles.Left | AnchorStyles.Right,
+                AutoSize = false,
+                Font = new Font(SystemFonts.DefaultFont, FontStyle.Bold)
+            };
+            testPanel.Controls.Add(_testResultLabel, 0, 1);
+            testPanel.SetColumnSpan(_testResultLabel, 3);
+
+            testPanel.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 100));
+            testPanel.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 70));
+            testPanel.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 30));
+
+            _testGroup.Controls.Add(testPanel);
 
             // Button panel
             var buttonPanel = new FlowLayoutPanel
@@ -213,18 +275,36 @@ namespace VirtualDesktopDisplayer
             };
             _addButton.Click += AddButton_Click;
 
+            _moveUpButton = new Button
+            {
+                Text = "Move Up",
+                Size = new Size(90, 30)
+            };
+            _moveUpButton.Click += MoveUpButton_Click;
+
+            _moveDownButton = new Button
+            {
+                Text = "Move Down",
+                Size = new Size(100, 30)
+            };
+            _moveDownButton.Click += MoveDownButton_Click;
+
             buttonPanel.Controls.Add(_cancelButton);
             buttonPanel.Controls.Add(_saveButton);
             buttonPanel.Controls.Add(_removeButton);
+            buttonPanel.Controls.Add(_moveDownButton);
+            buttonPanel.Controls.Add(_moveUpButton);
             buttonPanel.Controls.Add(_addButton);
 
             // Add to main panel
             mainPanel.Controls.Add(_defaultProjectGroup, 0, 0);
             mainPanel.Controls.Add(gridPanel, 0, 1);
-            mainPanel.Controls.Add(buttonPanel, 0, 2);
+            mainPanel.Controls.Add(_testGroup, 0, 2);
+            mainPanel.Controls.Add(buttonPanel, 0, 3);
 
             mainPanel.RowStyles.Add(new RowStyle(SizeType.Absolute, 190));
             mainPanel.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
+            mainPanel.RowStyles.Add(new RowStyle(SizeType.Absolute, 80));
             mainPanel.RowStyles.Add(new RowStyle(SizeType.Absolute, 60));
 
             this.Controls.Add(mainPanel);
@@ -241,13 +321,16 @@ namespace VirtualDesktopDisplayer
             _selectDefaultLabelsButton.Enabled = _projectConfig.DefaultProject.Id > 0;
 
             // Load project mappings
-            var dataSource = _projectConfig.ProjectMappings.Select(m => new ProjectMappingViewModel
-            {
-                ProjectId = m.Project.Id,
-                ProjectName = m.Project.Name,
-                KeywordsString = string.Join(", ", m.Keywords),
-                LabelIdsString = string.Join(", ", m.Project.LabelIds)
-            }).ToList();
+            var dataSource = _projectConfig.ProjectMappings
+                .OrderBy(m => m.Order)
+                .Select(m => new ProjectMappingViewModel
+                {
+                    ProjectId = m.Project.Id,
+                    ProjectName = m.Project.Name,
+                    KeywordsString = string.Join(", ", m.Keywords),
+                    LabelIdsString = string.Join(", ", m.Project.LabelIds),
+                    Order = m.Order
+                }).ToList();
 
             _projectGrid.DataSource = dataSource;
         }
@@ -258,16 +341,17 @@ namespace VirtualDesktopDisplayer
             if (form.ShowDialog() == DialogResult.OK)
             {
                 var dataSource = (List<ProjectMappingViewModel>)_projectGrid.DataSource;
-                dataSource.Add(new ProjectMappingViewModel
+                var nextOrder = dataSource?.Count ?? 0;
+                dataSource?.Add(new ProjectMappingViewModel
                 {
                     ProjectId = form.ProjectId,
                     ProjectName = form.ProjectName,
                     KeywordsString = string.Join(", ", form.Keywords),
-                    LabelIdsString = string.Join(", ", form.LabelIds)
+                    LabelIdsString = string.Join(", ", form.LabelIds),
+                    Order = nextOrder
                 });
 
-                _projectGrid.DataSource = null;
-                _projectGrid.DataSource = dataSource;
+                RefreshGrid();
             }
         }
 
@@ -277,10 +361,18 @@ namespace VirtualDesktopDisplayer
             {
                 var dataSource = (List<ProjectMappingViewModel>)_projectGrid.DataSource;
                 var selectedIndex = _projectGrid.SelectedRows[0].Index;
-                dataSource.RemoveAt(selectedIndex);
+                dataSource?.RemoveAt(selectedIndex);
 
-                _projectGrid.DataSource = null;
-                _projectGrid.DataSource = dataSource;
+                // Reorder items to maintain proper sequence
+                if (dataSource != null)
+                {
+                    for (int i = 0; i < dataSource.Count; i++)
+                    {
+                        dataSource[i].Order = i;
+                    }
+                }
+
+                RefreshGrid();
             }
         }
 
@@ -330,7 +422,8 @@ namespace VirtualDesktopDisplayer
                             Name = item.ProjectName,
                             LabelIds = labelIds
                         },
-                        Keywords = keywords
+                        Keywords = keywords,
+                        Order = item.Order
                     });
                 }
 
@@ -377,6 +470,150 @@ namespace VirtualDesktopDisplayer
                 MessageBox.Show($"Error retrieving projects: {ex.Message}",
                     "Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
             }
+        }
+
+        private void MoveUpButton_Click(object sender, EventArgs e)
+        {
+            if (_projectGrid.SelectedRows.Count > 0)
+            {
+                var selectedIndex = _projectGrid.SelectedRows[0].Index;
+                if (selectedIndex > 0)
+                {
+                    var dataSource = (List<ProjectMappingViewModel>)_projectGrid.DataSource;
+                    if (dataSource != null)
+                    {
+                        // Swap with previous item
+                        var item = dataSource[selectedIndex];
+                        dataSource.RemoveAt(selectedIndex);
+                        dataSource.Insert(selectedIndex - 1, item);
+
+                        // Update order values
+                        for (int i = 0; i < dataSource.Count; i++)
+                        {
+                            dataSource[i].Order = i;
+                        }
+
+                        RefreshGrid();
+                        _projectGrid.Rows[selectedIndex - 1].Selected = true;
+                    }
+                }
+            }
+        }
+
+        private void MoveDownButton_Click(object sender, EventArgs e)
+        {
+            if (_projectGrid.SelectedRows.Count > 0)
+            {
+                var selectedIndex = _projectGrid.SelectedRows[0].Index;
+                var dataSource = (List<ProjectMappingViewModel>)_projectGrid.DataSource;
+                if (dataSource != null && selectedIndex < dataSource.Count - 1)
+                {
+                    // Swap with next item
+                    var item = dataSource[selectedIndex];
+                    dataSource.RemoveAt(selectedIndex);
+                    dataSource.Insert(selectedIndex + 1, item);
+
+                    // Update order values
+                    for (int i = 0; i < dataSource.Count; i++)
+                    {
+                        dataSource[i].Order = i;
+                    }
+
+                    RefreshGrid();
+                    _projectGrid.Rows[selectedIndex + 1].Selected = true;
+                }
+            }
+        }
+
+        private void TestButton_Click(object sender, EventArgs e)
+        {
+            var desktopName = _testDesktopNameTextBox.Text.Trim();
+            if (string.IsNullOrEmpty(desktopName))
+            {
+                MessageBox.Show("Please enter a desktop name to test.", "Test Project Matching", 
+                    MessageBoxButtons.OK, MessageBoxIcon.Information);
+                return;
+            }
+
+            // Create a temporary configuration with current data
+            var tempConfig = new ProjectConfiguration();
+            tempConfig.ProjectMappings.Clear();
+            
+            var dataSource = (List<ProjectMappingViewModel>)_projectGrid.DataSource;
+            if (dataSource != null)
+            {
+                foreach (var item in dataSource.OrderBy(x => x.Order))
+                {
+                    var keywords = item.KeywordsString
+                        .Split(new[] { ',', ';' }, StringSplitOptions.RemoveEmptyEntries)
+                        .Select(k => k.Trim())
+                        .Where(k => !string.IsNullOrEmpty(k))
+                        .ToList();
+
+                    var labelIds = item.LabelIdsString
+                        .Split(new[] { ',', ';' }, StringSplitOptions.RemoveEmptyEntries)
+                        .Select(l => l.Trim())
+                        .Where(l => !string.IsNullOrEmpty(l) && int.TryParse(l, out _))
+                        .Select(l => int.Parse(l))
+                        .ToList();
+
+                    tempConfig.ProjectMappings.Add(new ProjectMapping
+                    {
+                        Project = new ProjectInfo 
+                        { 
+                            Id = item.ProjectId, 
+                            Name = item.ProjectName,
+                            LabelIds = labelIds
+                        },
+                        Keywords = keywords,
+                        Order = item.Order
+                    });
+                }
+            }
+
+            var result = tempConfig.DetectProject(desktopName);
+            
+            string message;
+            MessageBoxIcon icon;
+            
+            if (result.Id == tempConfig.DefaultProject.Id)
+            {
+                message = $"Desktop Name: '{desktopName}'\n\n" +
+                         $"No matching project rules found.\n" +
+                         $"Would use default project: {result.Name}";
+                icon = MessageBoxIcon.Warning;
+                _testResultLabel.Text = $"No match found. Would use default project: {result.Name}";
+                _testResultLabel.ForeColor = Color.Orange;
+            }
+            else
+            {
+                // Find which rule matched
+                var matchedMapping = tempConfig.ProjectMappings
+                    .OrderBy(m => m.Order)
+                    .FirstOrDefault(m => m.Keywords.Any(k => desktopName.ToLower().Contains(k.ToLower())));
+                
+                var matchedKeywords = matchedMapping?.Keywords
+                    .Where(k => desktopName.ToLower().Contains(k.ToLower()))
+                    .ToList() ?? new List<string>();
+                
+                message = $"Desktop Name: '{desktopName}'\n\n" +
+                         $"✓ Matched Project: {result.Name}\n" +
+                         $"Rule Order: {matchedMapping?.Order ?? 0}\n" +
+                         $"Matched Keywords: {string.Join(", ", matchedKeywords)}";
+                icon = MessageBoxIcon.Information;
+                _testResultLabel.Text = $"Matched project: {result.Name}";
+                _testResultLabel.ForeColor = Color.Green;
+            }
+            
+            MessageBox.Show(message, "Project Matching Test Result", 
+                MessageBoxButtons.OK, icon);
+        }
+
+        private void RefreshGrid()
+        {
+            var currentDataSource = _projectGrid.DataSource;
+            _projectGrid.DataSource = null;
+            _projectGrid.DataSource = currentDataSource;
         }
 
         private async void SelectDefaultLabelsButton_Click(object? sender, EventArgs e)
@@ -512,6 +749,7 @@ namespace VirtualDesktopDisplayer
         public string ProjectName { get; set; } = "";
         public string KeywordsString { get; set; } = "";
         public string LabelIdsString { get; set; } = "";
+        public int Order { get; set; }
     }
 
     /// <summary>
