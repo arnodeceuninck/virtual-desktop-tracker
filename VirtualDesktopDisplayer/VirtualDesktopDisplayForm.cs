@@ -282,7 +282,15 @@ namespace VirtualDesktopDisplayer
             }
             else if (e.Button == MouseButtons.Left && !_isRenameMode)
             {
-                ShowRenameTextBox();
+                // Check if Ctrl is pressed for "Open Current Issue" functionality
+                if (Control.ModifierKeys == Keys.Control)
+                {
+                    OnOpenCurrentIssueClick(sender, e);
+                }
+                else
+                {
+                    ShowRenameTextBox();
+                }
             }
         }
 
@@ -305,24 +313,30 @@ namespace VirtualDesktopDisplayer
             contextMenu.Items.Add("Create New Desktop", null, OnCreateNewDesktopClick);
             
             contextMenu.Items.Add(new ToolStripSeparator());
-            contextMenu.Items.Add("Working Hours Estimation", null, OnWorkingHoursEstimationClick);
-            contextMenu.Items.Add("Timeline View", null, OnTimelineViewClick);
-            contextMenu.Items.Add(new ToolStripSeparator());
-            contextMenu.Items.Add("Open Current Issue", null, OnOpenCurrentIssueClick);
-            contextMenu.Items.Add(new ToolStripSeparator());
-            contextMenu.Items.Add("View Log JSON", null, OnViewUsageLogClick);
-            contextMenu.Items.Add("Open Log Folder", null, OnOpenLogFolderClick);
-            contextMenu.Items.Add(new ToolStripSeparator());
-            contextMenu.Items.Add("Generate Report", null, OnGenerateReportClick);
+            
+            // Group extras options under a single 'Extras' menu
+            var extrasMenu = new ToolStripMenuItem("Extras");
+            extrasMenu.DropDownItems.Add("Working Hours Estimation", null, OnWorkingHoursEstimationClick);
+            extrasMenu.DropDownItems.Add("Timeline View", null, OnTimelineViewClick);
+            extrasMenu.DropDownItems.Add(new ToolStripSeparator());
+            extrasMenu.DropDownItems.Add("Open Current Issue", null, OnOpenCurrentIssueClick);
+            extrasMenu.DropDownItems.Add(new ToolStripSeparator());
+            extrasMenu.DropDownItems.Add("View Log JSON", null, OnViewUsageLogClick);
+            extrasMenu.DropDownItems.Add("Open Log Folder", null, OnOpenLogFolderClick);
+            extrasMenu.DropDownItems.Add(new ToolStripSeparator());
+            extrasMenu.DropDownItems.Add("Generate Report", null, OnGenerateReportClick);
+            extrasMenu.DropDownItems.Add("Copy Timely JavaScript", null, OnCopyJavaScriptClick);
+            extrasMenu.DropDownItems.Add("Upload to Timely (from time...)", null, OnUploadToTimelyFromTimeClick);
+            contextMenu.Items.Add(extrasMenu);
+            
             // Group configure options under a single 'Configure' menu
             var configureMenu = new ToolStripMenuItem("Configure");
             configureMenu.DropDownItems.Add("Timely", null, OnConfigureTimelyClick);
             configureMenu.DropDownItems.Add("Projects", null, OnConfigureProjectsClick);
             configureMenu.DropDownItems.Add("Issue Tracking", null, OnConfigureIssueTrackingClick);
             contextMenu.Items.Add(configureMenu);
-            contextMenu.Items.Add("Copy Timely JavaScript", null, OnCopyJavaScriptClick);
+            
             contextMenu.Items.Add("Upload to Timely", null, OnUploadToTimelyClick);
-            contextMenu.Items.Add("Upload to Timely (from time...)", null, OnUploadToTimelyFromTimeClick);
             contextMenu.Items.Add(new ToolStripSeparator());
             contextMenu.Items.Add("Exit", null, (s, args) => _applicationService.ExitApplication());
 
