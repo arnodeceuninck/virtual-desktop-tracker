@@ -88,6 +88,31 @@ namespace VirtualDesktopHelper.Services
         /// <returns>Result of the upload operation.</returns>
         public async Task<TimelyUploadResult> UploadToTimelyAsync(List<DesktopUsageEntry> allEntries, bool currentDayOnly = true, DateTime? fromTime = null)
         {
+            return await UploadToTimelyAsync(allEntries, currentDayOnly, fromTime, null);
+        }
+
+        /// <summary>
+        /// Uploads desktop usage data directly to Timely via API for a specific date.
+        /// </summary>
+        /// <param name="allEntries">All desktop usage entries.</param>
+        /// <param name="targetDate">The specific date to upload entries for. If null, uses current day filtering.</param>
+        /// <param name="fromTime">If specified, only uploads entries ending after this time.</param>
+        /// <returns>Result of the upload operation.</returns>
+        public async Task<TimelyUploadResult> UploadToTimelyAsync(List<DesktopUsageEntry> allEntries, DateTime? targetDate, DateTime? fromTime = null)
+        {
+            return await UploadToTimelyAsync(allEntries, targetDate == null, fromTime, targetDate);
+        }
+
+        /// <summary>
+        /// Internal method that handles all upload scenarios with optional date and time filtering.
+        /// </summary>
+        /// <param name="allEntries">All desktop usage entries.</param>
+        /// <param name="currentDayOnly">If true, only uploads entries from the current day.</param>
+        /// <param name="fromTime">If specified, only uploads entries ending after this time.</param>
+        /// <param name="targetDate">If specified, uploads entries for this specific date instead of current day.</param>
+        /// <returns>Result of the upload operation.</returns>
+        private async Task<TimelyUploadResult> UploadToTimelyAsync(List<DesktopUsageEntry> allEntries, bool currentDayOnly, DateTime? fromTime, DateTime? targetDate)
+        {
             var result = new TimelyUploadResult();
             
             try
@@ -104,8 +129,23 @@ namespace VirtualDesktopHelper.Services
                 // Ensure all entries have proper end times
                 var entriesWithEndTime = DesktopUsageUtilities.EnsureEndTimesAreSet(allEntries);
 
-                // Filter entries for current day if requested
-                var filteredEntries = currentDayOnly ? DesktopUsageUtilities.FilterCurrentDayEntries(entriesWithEndTime) : entriesWithEndTime;
+                // Filter entries by date
+                List<DesktopUsageEntry> filteredEntries;
+                if (targetDate.HasValue)
+                {
+                    // Filter for specific date
+                    filteredEntries = DesktopUsageUtilities.FilterEntriesByDate(entriesWithEndTime, targetDate.Value);
+                }
+                else if (currentDayOnly)
+                {
+                    // Filter for current day
+                    filteredEntries = DesktopUsageUtilities.FilterCurrentDayEntries(entriesWithEndTime);
+                }
+                else
+                {
+                    // Use all entries
+                    filteredEntries = entriesWithEndTime;
+                }
 
                 // Filter entries from specific time if requested
                 if (fromTime.HasValue)
@@ -115,14 +155,15 @@ namespace VirtualDesktopHelper.Services
 
                 if (!filteredEntries.Any())
                 {
-                    var error = currentDayOnly ? "No usage data available for today." : "No usage data available.";
+                    var dateDescription = targetDate?.ToString("yyyy-MM-dd") ?? (currentDayOnly ? "today" : "the specified range");
+                    var error = $"No usage data available for {dateDescription}.";
                     result.Errors.Add(error);
                     LogError(error);
                     return result;
                 }
 
-                // Get target date
-                var targetDate = DateTime.Today;
+                // Get the actual target date for upload (use provided date or today)
+                var uploadDate = targetDate ?? DateTime.Today;
 
                 // Consolidate entries first
                 var consolidatedEntries = _consolidationService.ConsolidateUsageEntries(filteredEntries);
@@ -153,7 +194,7 @@ namespace VirtualDesktopHelper.Services
                     
                     try
                     {
-                        await UploadDesktopGroup(desktopName, activities, targetDate);
+                        await UploadDesktopGroup(desktopName, activities, uploadDate);
                         result.SuccessCount++;
                         LogInfo($"Successfully uploaded desktop group: {desktopName}");
                     }

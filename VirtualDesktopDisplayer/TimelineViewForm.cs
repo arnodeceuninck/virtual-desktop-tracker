@@ -25,6 +25,9 @@ namespace VirtualDesktopDisplayer
         private Panel _legendPanel;
         private DateTimePicker _datePicker;
         private Button _refreshButton;
+        private Button _previousDayButton;
+        private Button _nextDayButton;
+        private Button _openInTimelyButton;
         private Label _statusLabel;
 
         private List<DesktopUsageEntry> _detailedEntries = new List<DesktopUsageEntry>();
@@ -84,6 +87,27 @@ namespace VirtualDesktopDisplayer
                 UseVisualStyleBackColor = true
             };
 
+            _previousDayButton = new Button
+            {
+                Text = "◀ Previous",
+                Size = new Size(80, 25),
+                UseVisualStyleBackColor = true
+            };
+
+            _nextDayButton = new Button
+            {
+                Text = "Next ▶",
+                Size = new Size(80, 25),
+                UseVisualStyleBackColor = true
+            };
+
+            _openInTimelyButton = new Button
+            {
+                Text = "Upload to Timely",
+                Size = new Size(120, 25),
+                UseVisualStyleBackColor = true
+            };
+
             _statusLabel = new Label
             {
                 Text = "Loading...",
@@ -120,6 +144,9 @@ namespace VirtualDesktopDisplayer
 
             // Add tooltips
             var toolTip = new ToolTip();
+            toolTip.SetToolTip(_previousDayButton, "Go to previous day");
+            toolTip.SetToolTip(_nextDayButton, "Go to next day");
+            toolTip.SetToolTip(_openInTimelyButton, "Upload this day's data to Timely");
             _detailedTimelinePanel.MouseMove += (s, e) => ShowTimelineTooltip(s, e, _detailedEntries, toolTip);
             _consolidatedTimelinePanel.MouseMove += (s, e) => ShowTimelineTooltip(s, e, _consolidatedEntries, toolTip);
         }
@@ -145,10 +172,13 @@ namespace VirtualDesktopDisplayer
             };
 
             _datePicker.Location = new Point(45, 5);
-            _refreshButton.Location = new Point(_datePicker.Right + 10, 5);
-            _statusLabel.Location = new Point(_refreshButton.Right + 20, 8);
+            _previousDayButton.Location = new Point(_datePicker.Right + 10, 5);
+            _nextDayButton.Location = new Point(_previousDayButton.Right + 5, 5);
+            _refreshButton.Location = new Point(_nextDayButton.Right + 10, 5);
+            _openInTimelyButton.Location = new Point(_refreshButton.Right + 10, 5);
+            _statusLabel.Location = new Point(_openInTimelyButton.Right + 20, 8);
 
-            topPanel.Controls.AddRange(new Control[] { dateLabel, _datePicker, _refreshButton, _statusLabel });
+            topPanel.Controls.AddRange(new Control[] { dateLabel, _datePicker, _previousDayButton, _nextDayButton, _refreshButton, _openInTimelyButton, _statusLabel });
             this.Controls.Add(topPanel);
 
             currentY += topPanel.Height + margin;
@@ -267,6 +297,9 @@ namespace VirtualDesktopDisplayer
         {
             _refreshButton.Click += OnRefreshClick;
             _datePicker.ValueChanged += OnDateChanged;
+            _previousDayButton.Click += OnPreviousDayClick;
+            _nextDayButton.Click += OnNextDayClick;
+            _openInTimelyButton.Click += OnOpenInTimelyClick;
         }
 
         private async void LoadProjectColors()
@@ -720,6 +753,144 @@ namespace VirtualDesktopDisplayer
         private void OnDateChanged(object sender, EventArgs e)
         {
             LoadDataForDate(_datePicker.Value.Date);
+        }
+
+        private void OnPreviousDayClick(object sender, EventArgs e)
+        {
+            _datePicker.Value = _datePicker.Value.AddDays(-1);
+        }
+
+        private void OnNextDayClick(object sender, EventArgs e)
+        {
+            _datePicker.Value = _datePicker.Value.AddDays(1);
+        }
+
+        private async void OnOpenInTimelyClick(object sender, EventArgs e)
+        {
+            try
+            {
+                // Check if Timely configuration is set up
+                var timelyConfig = TimelyConfiguration.Instance;
+                if (!timelyConfig.IsConfigured())
+                {
+                    var result = MessageBox.Show(
+                        "Timely configuration is not set up. Would you like to configure it now?\n\n" +
+                        "You'll need to provide:\n" +
+                        "- CSRF Token (from browser network requests)\n" +
+                        "- Cookie String (from browser)\n" +
+                        "- Project ID and User ID (from Timely)\n\n" +
+                        "The configuration file will be created at:\n" +
+                        TimelyConfiguration.GetConfigFilePath(),
+                        "Timely Configuration Required",
+                        MessageBoxButtons.YesNo,
+                        MessageBoxIcon.Question);
+
+                    if (result == DialogResult.Yes)
+                    {
+                        var configForm = new TimelyConfigurationFormEnhanced();
+                        if (configForm.ShowDialog() == DialogResult.OK)
+                        {
+                            MessageBox.Show("Timely configuration saved successfully!", "Configuration Saved", 
+                                MessageBoxButtons.OK, MessageBoxIcon.Information);
+                        }
+                        else
+                        {
+                            return; // User cancelled configuration
+                        }
+                    }
+                    else
+                    {
+                        return; // User chose not to configure
+                    }
+                }
+
+                // Get usage data for the selected date
+                var selectedDate = _datePicker.Value.Date;
+                var allEntries = _usageTracker.GetAllUsageHistory();
+                
+                // Check if we have any data for the selected date
+                var entriesForDate = allEntries.Where(entry => entry.StartTime.Date == selectedDate).ToList();
+                if (!entriesForDate.Any())
+                {
+                    MessageBox.Show($"No usage data available for {selectedDate:yyyy-MM-dd} to upload to Timely.",
+                        "No Data", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                    return;
+                }
+
+                // Confirm the upload action
+                var confirmResult = MessageBox.Show(
+                    $"This will upload usage data for {selectedDate:yyyy-MM-dd} directly to Timely.\n\n" +
+                    $"Found {entriesForDate.Count} usage entries for this date.\n\n" +
+                    "Are you sure you want to proceed?\n\n" +
+                    "Note: This will create time entries in your Timely workspace.",
+                    "Confirm Timely Upload",
+                    MessageBoxButtons.YesNo,
+                    MessageBoxIcon.Question);
+
+                if (confirmResult != DialogResult.Yes)
+                {
+                    return;
+                }
+
+                // Show progress indication
+                _statusLabel.Text = $"Uploading {selectedDate:yyyy-MM-dd} to Timely...";
+                _statusLabel.ForeColor = Color.Blue;
+                Application.DoEvents();
+
+                // Upload to Timely using the new date-specific overload
+                using (var timelyService = new TimelyApiService())
+                {
+                    var uploadResult = await timelyService.UploadToTimelyAsync(allEntries, selectedDate);
+
+                    if (uploadResult.Success)
+                    {
+                        var successMessage = $"Successfully uploaded {uploadResult.SuccessCount} entries for {selectedDate:yyyy-MM-dd} to Timely.";
+                        _statusLabel.Text = "Upload completed successfully";
+                        _statusLabel.ForeColor = Color.Green;
+                        MessageBox.Show(successMessage, "Upload Successful", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                    }
+                    else
+                    {
+                        _statusLabel.Text = "Upload failed";
+                        _statusLabel.ForeColor = Color.Red;
+                        
+                        var errorMessage = $"No entries were successfully uploaded for {selectedDate:yyyy-MM-dd} ({uploadResult.FailureCount} failed)";
+                        if (uploadResult.Errors.Any())
+                        {
+                            errorMessage += "\n\nErrors:\n" + string.Join("\n", uploadResult.Errors.Take(5));
+                            if (uploadResult.Errors.Count > 5)
+                            {
+                                errorMessage += $"\n... and {uploadResult.Errors.Count - 5} more errors";
+                            }
+                        }
+
+                        MessageBox.Show(errorMessage, "Upload Failed", MessageBoxButtons.OK, MessageBoxIcon.Error);
+
+                        // Offer to reconfigure Timely on error
+                        var reconfigureResult = MessageBox.Show(
+                            "Would you like to reconfigure Timely settings to attempt to resolve the issue?",
+                            "Reconfigure Timely",
+                            MessageBoxButtons.YesNo,
+                            MessageBoxIcon.Question);
+
+                        if (reconfigureResult == DialogResult.Yes)
+                        {
+                            var configForm = new TimelyConfigurationFormEnhanced();
+                            if (configForm.ShowDialog() == DialogResult.OK)
+                            {
+                                MessageBox.Show("Timely configuration updated successfully!", "Configuration Updated", 
+                                    MessageBoxButtons.OK, MessageBoxIcon.Information);
+                            }
+                        }
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                _statusLabel.Text = "Upload error";
+                _statusLabel.ForeColor = Color.Red;
+                MessageBox.Show($"Error uploading to Timely: {ex.Message}", "Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
+            }
         }
 
         protected override void Dispose(bool disposing)
