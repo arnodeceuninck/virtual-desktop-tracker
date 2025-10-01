@@ -340,10 +340,9 @@ namespace VirtualDesktopDisplayer
             contextMenu.Items.Add(new ToolStripSeparator());
             contextMenu.Items.Add("Exit", null, (s, args) => _applicationService.ExitApplication());
 
-            // Convert the local form coordinates to screen coordinates
-            // This ensures the context menu appears on the correct screen near the form
-            Point screenLocation = this.PointToScreen(location);
-            contextMenu.Show(screenLocation);
+            // Show the context menu relative to this form control to ensure it appears on the same virtual desktop
+            // Using the overload that takes a Control ensures the context menu inherits the desktop behavior
+            contextMenu.Show(this, location);
 
             // Asynchronously load the submenu items
             _ = Task.Run(async () => await LoadSubmenuItemsAsync(recentNamesItem, jumpToDesktopItem));
