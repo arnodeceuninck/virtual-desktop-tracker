@@ -282,9 +282,23 @@ namespace VirtualDesktopDisplayer
             }
             else if (e.Button == MouseButtons.Left && !_isRenameMode)
             {
-                // Check if Ctrl is pressed for "Open Current Issue" functionality
+                // Check if Ctrl is pressed for enhanced functionality
                 if (Control.ModifierKeys == Keys.Control)
                 {
+                    // First check if current desktop doesn't have a ticket number
+                    if (!CurrentDesktopHasTicketNumber())
+                    {
+                        // Check if clipboard contains a ticket number
+                        string? clipboardTicket = GetTicketNumberFromClipboard();
+                        if (!string.IsNullOrEmpty(clipboardTicket))
+                        {
+                            // Automatically rename desktop with ticket number
+                            OnAutoRenameWithTicketFromClipboard(clipboardTicket);
+                            return;
+                        }
+                    }
+                    
+                    // Fallback to original "Open Current Issue" functionality
                     OnOpenCurrentIssueClick(sender, e);
                 }
                 else
@@ -1504,6 +1518,176 @@ namespace VirtualDesktopDisplayer
                 {
                     _applicationService.ShowInformation("Issue tracking configuration saved successfully!");
                 }
+            }
+        }
+
+        /// <summary>
+        /// Checks if the clipboard contains a ticket number matching the configured pattern.
+        /// </summary>
+        /// <returns>The ticket number if found, null otherwise.</returns>
+        private string? GetTicketNumberFromClipboard()
+        {
+            try
+            {
+                if (!_config.EnableIssueTracking || string.IsNullOrWhiteSpace(_config.IssueFormatRegex))
+                {
+                    return null;
+                }
+
+                if (!Clipboard.ContainsText())
+                {
+                    return null;
+                }
+
+                string clipboardText = Clipboard.GetText();
+                var issueService = new IssueTrackingService(_config);
+                return issueService.ExtractIssueFromDesktopName(clipboardText);
+            }
+            catch (Exception)
+            {
+                // If there's any error accessing clipboard or parsing, return null
+                return null;
+            }
+        }
+
+        /// <summary>
+        /// Checks if the current desktop name already contains a ticket number.
+        /// </summary>
+        /// <returns>True if the current desktop has a ticket number, false otherwise.</returns>
+        private bool CurrentDesktopHasTicketNumber()
+        {
+            try
+            {
+                if (!_config.EnableIssueTracking || string.IsNullOrWhiteSpace(_config.IssueFormatRegex))
+                {
+                    return false;
+                }
+
+                string currentDesktopName = _desktopNameService.GetCurrentDesktopName();
+                var issueService = new IssueTrackingService(_config);
+                string? ticketNumber = issueService.ExtractIssueFromDesktopName(currentDesktopName);
+                return !string.IsNullOrEmpty(ticketNumber);
+            }
+            catch (Exception)
+            {
+                // If there's any error, assume no ticket number
+                return false;
+            }
+        }
+
+        /// <summary>
+        /// Handles the click event for renaming desktop and updating past entries with ticket number from clipboard.
+        /// </summary>
+        private void OnRenameAndUpdateWithTicketClick(object? sender, EventArgs e)
+        {
+            try
+            {
+                string currentDesktopName = _desktopNameService.GetCurrentDesktopName();
+                
+                if (string.IsNullOrWhiteSpace(currentDesktopName) || currentDesktopName.StartsWith("Error:") || currentDesktopName == "Unknown Desktop")
+                {
+                    _applicationService.ShowWarning("Cannot determine current desktop name. Please ensure the desktop has a valid name.");
+                    return;
+                }
+
+                string? ticketNumber = GetTicketNumberFromClipboard();
+                if (string.IsNullOrEmpty(ticketNumber))
+                {
+                    _applicationService.ShowWarning("No valid ticket number found in clipboard.");
+                    return;
+                }
+
+                // Create new name by appending ticket number
+                string newName = $"{currentDesktopName} {ticketNumber}";
+
+                // Confirm the action
+                var confirmResult = MessageBox.Show(
+                    $"This will:\n\n" +
+                    $"1. Rename the current desktop from \"{currentDesktopName}\" to \"{newName}\"\n" +
+                    $"2. Update ALL entries from TODAY with the name \"{currentDesktopName}\" to use \"{newName}\"\n\n" +
+                    $"The ticket number \"{ticketNumber}\" was detected from your clipboard.\n\n" +
+                    $"This action will modify your usage history. Are you sure you want to continue?",
+                    "Confirm Desktop Rename & Update Past Entries",
+                    MessageBoxButtons.YesNo,
+                    MessageBoxIcon.Question);
+
+                if (confirmResult != DialogResult.Yes)
+                {
+                    return;
+                }
+
+                // Perform the rename and update operation
+                bool success = _usageTracker.UpdateDesktopNameForTodaysEntries(currentDesktopName, newName);
+
+                if (success)
+                {
+                    // Update the display immediately
+                    if (desktopLabel != null)
+                    {
+                        desktopLabel.Text = newName;
+                    }
+                    _lastDesktopName = newName;
+
+                    _applicationService.ShowInformation($"Desktop successfully renamed to \"{newName}\" and all today's entries have been updated!");
+                }
+                else
+                {
+                    _applicationService.ShowError("Failed to update desktop name and past entries. Please try again.");
+                }
+            }
+            catch (Exception ex)
+            {
+                _applicationService.ShowError($"Error renaming desktop with ticket number: {ex.Message}");
+            }
+        }
+
+        /// <summary>
+        /// Automatically renames the current desktop by appending a ticket number from clipboard.
+        /// Used when Ctrl+Click is pressed and conditions are met.
+        /// Also updates all past entries from today with the old name.
+        /// </summary>
+        /// <param name="ticketNumber">The ticket number to append to the desktop name.</param>
+        private void OnAutoRenameWithTicketFromClipboard(string ticketNumber)
+        {
+            try
+            {
+                string currentDesktopName = _desktopNameService.GetCurrentDesktopName();
+                
+                if (string.IsNullOrWhiteSpace(currentDesktopName) || currentDesktopName.StartsWith("Error:") || currentDesktopName == "Unknown Desktop")
+                {
+                    _applicationService.ShowWarning("Cannot determine current desktop name. Please ensure the desktop has a valid name.");
+                    return;
+                }
+
+                // Create new name by appending ticket number
+                string newName = $"{currentDesktopName} {ticketNumber}";
+
+                // Perform the rename and update operation (same as OnRenameAndUpdatePastEntriesClick)
+                bool success = _usageTracker.UpdateDesktopNameForTodaysEntries(currentDesktopName, newName);
+
+                if (success)
+                {
+                    // Update the display immediately
+                    if (desktopLabel != null)
+                    {
+                        desktopLabel.Text = newName;
+                    }
+                    _lastDesktopName = newName;
+                    
+                    // Track the usage change
+                    _usageTracker.TrackDesktopUsage(newName);
+
+                    // Show brief success notification
+                    _applicationService.ShowInformation($"Desktop renamed to \"{newName}\" with ticket from clipboard!\n\nAll today's entries have been updated.");
+                }
+                else
+                {
+                    _applicationService.ShowError("Failed to rename desktop and update past entries. Please try again.");
+                }
+            }
+            catch (Exception ex)
+            {
+                _applicationService.ShowError($"Error auto-renaming desktop with ticket number: {ex.Message}");
             }
         }
     }
