@@ -278,6 +278,13 @@ namespace VirtualDesktopDisplayer
         {
             if (e.Button == MouseButtons.Right)
             {
+                // Check if Ctrl is pressed for ticket number copy functionality
+                if (Control.ModifierKeys == Keys.Control)
+                {
+                    OnCopyTicketNumberToClipboard();
+                    return;
+                }
+                
                 ShowContextMenu(e.Location);
             }
             else if (e.Button == MouseButtons.Left && !_isRenameMode)
@@ -1689,6 +1696,116 @@ namespace VirtualDesktopDisplayer
             {
                 _applicationService.ShowError($"Error auto-renaming desktop with ticket number: {ex.Message}");
             }
+        }
+
+        /// <summary>
+        /// Copies the ticket number from the current desktop name to the clipboard.
+        /// Used when Ctrl+Right-Click is pressed.
+        /// </summary>
+        private void OnCopyTicketNumberToClipboard()
+        {
+            try
+            {
+                if (!_config.EnableIssueTracking || string.IsNullOrWhiteSpace(_config.IssueFormatRegex))
+                {
+                    _applicationService.ShowWarning("Issue tracking is not configured. Please configure it first to use ticket number functionality.");
+                    return;
+                }
+
+                string currentDesktopName = _desktopNameService.GetCurrentDesktopName();
+                
+                if (string.IsNullOrWhiteSpace(currentDesktopName) || currentDesktopName.StartsWith("Error:") || currentDesktopName == "Unknown Desktop")
+                {
+                    _applicationService.ShowWarning("Cannot determine current desktop name. Please ensure the desktop has a valid name.");
+                    return;
+                }
+
+                var issueService = new IssueTrackingService(_config);
+                string? ticketNumber = issueService.ExtractIssueFromDesktopName(currentDesktopName);
+
+                if (string.IsNullOrEmpty(ticketNumber))
+                {
+                    _applicationService.ShowInformation($"No ticket number found in desktop name: \"{currentDesktopName}\"\n\nMake sure your desktop name contains a ticket number that matches the configured pattern.");
+                    return;
+                }
+
+                // Copy ticket number to clipboard
+                Clipboard.SetText(ticketNumber);
+                
+                // Show brief toast notification
+                ShowToastNotification($"Ticket number \"{ticketNumber}\" copied to clipboard!");
+            }
+            catch (Exception ex)
+            {
+                _applicationService.ShowError($"Error copying ticket number to clipboard: {ex.Message}");
+            }
+        }
+
+        /// <summary>
+        /// Shows a brief toast notification that automatically disappears after a short duration.
+        /// </summary>
+        /// <param name="message">The message to display in the toast notification.</param>
+        private void ShowToastNotification(string message)
+        {
+            // Create a simple toast form
+            var toast = new Form()
+            {
+                FormBorderStyle = FormBorderStyle.None,
+                BackColor = Color.FromArgb(45, 45, 48), // Dark background
+                ForeColor = Color.White,
+                StartPosition = FormStartPosition.Manual,
+                TopMost = true,
+                ShowInTaskbar = false,
+                Size = new Size(300, 60),
+                Text = "Toast Notification"
+            };
+
+            // Add label with message
+            var label = new Label()
+            {
+                Text = message,
+                ForeColor = Color.White,
+                BackColor = Color.Transparent,
+                Font = new Font("Segoe UI", 9F, FontStyle.Regular),
+                TextAlign = ContentAlignment.MiddleCenter,
+                Dock = DockStyle.Fill,
+                Padding = new Padding(10)
+            };
+
+            toast.Controls.Add(label);
+
+            // Position the toast near the main form (bottom right area)
+            var screen = Screen.FromControl(this);
+            var x = screen.WorkingArea.Right - toast.Width - 20;
+            var y = screen.WorkingArea.Bottom - toast.Height - 60; // Above the main form
+            toast.Location = new Point(x, y);
+
+            // Set up timer to close the toast
+            var timer = new System.Windows.Forms.Timer();
+            timer.Interval = 2000; // 2 seconds
+            timer.Tick += (sender, e) =>
+            {
+                timer.Stop();
+                timer.Dispose();
+                
+                // Fade out effect (optional)
+                try
+                {
+                    if (!toast.IsDisposed)
+                    {
+                        toast.Hide();
+                        toast.Dispose();
+                    }
+                }
+                catch
+                {
+                    // Ignore disposal errors
+                }
+            };
+
+            // Show the toast and start timer
+            toast.Show();
+            timer.Start();
         }
     }
 }
