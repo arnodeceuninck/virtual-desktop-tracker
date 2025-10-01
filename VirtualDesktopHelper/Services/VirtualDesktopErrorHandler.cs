@@ -75,7 +75,12 @@ namespace VirtualDesktopHelper.Services
                 try
                 {
                     attempts++;
-                    LogInfo($"Attempting operation '{operationName}' (attempt {attempts}/{maxRetries + 1})", "RetryManager");
+                    
+                    // Only log retry attempts, not the first attempt
+                    if (attempts > 1)
+                    {
+                        LogInfo($"Attempting operation '{operationName}' (attempt {attempts}/{maxRetries + 1})", "RetryManager");
+                    }
                     
                     var result = action();
                     
