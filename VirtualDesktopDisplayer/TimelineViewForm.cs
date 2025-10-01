@@ -20,15 +20,16 @@ namespace VirtualDesktopDisplayer
         private readonly ProjectDetectionService _projectDetectionService;
         private readonly TimelyProjectService _timelyProjectService;
 
-        private Panel _detailedTimelinePanel;
-        private Panel _consolidatedTimelinePanel;
-        private Panel _legendPanel;
-        private DateTimePicker _datePicker;
-        private Button _refreshButton;
-        private Button _previousDayButton;
-        private Button _nextDayButton;
-        private Button _openInTimelyButton;
-        private Label _statusLabel;
+        private Panel? _detailedTimelinePanel;
+        private Panel? _consolidatedTimelinePanel;
+        private Panel? _overviewPanel;
+        private ListView? _overviewListView;
+        private DateTimePicker? _datePicker;
+        private Button? _refreshButton;
+        private Button? _previousDayButton;
+        private Button? _nextDayButton;
+        private Button? _openInTimelyButton;
+        private Label? _statusLabel;
 
         private List<DesktopUsageEntry> _detailedEntries = new List<DesktopUsageEntry>();
         private List<DesktopUsageEntry> _consolidatedEntries = new List<DesktopUsageEntry>();
@@ -61,7 +62,7 @@ namespace VirtualDesktopDisplayer
         private void InitializeComponent()
         {
             this.Text = "Timeline View - Detailed vs Consolidated";
-            this.Size = new Size(1200, 800);
+            this.Size = new Size(1400, 800); // Back to normal height
             this.StartPosition = FormStartPosition.CenterScreen;
             this.BackColor = Color.FromArgb(240, 240, 240);
 
@@ -130,17 +131,33 @@ namespace VirtualDesktopDisplayer
                 BorderStyle = BorderStyle.FixedSingle
             };
 
-            _legendPanel = new Panel
+            _overviewPanel = new Panel
             {
-                Size = new Size(250, TIMELINE_HEIGHT),
-                BackColor = Color.FromArgb(250, 250, 250),
+                Size = new Size(400, TIMELINE_HEIGHT), // Full height for overview
+                BackColor = Color.White,
                 BorderStyle = BorderStyle.FixedSingle
             };
+
+            _overviewListView = new ListView
+            {
+                View = View.Details,
+                FullRowSelect = true,
+                GridLines = true,
+                Dock = DockStyle.Fill,
+                Font = new Font("Segoe UI", 9),
+                ShowItemToolTips = true, // Enable built-in tooltips
+                Scrollable = true // Enable scrolling
+            };
+
+            // Add columns to the overview ListView
+            _overviewListView.Columns.Add("Desktop Name", 250);
+            _overviewListView.Columns.Add("Duration", 100);
+
+            _overviewPanel.Controls.Add(_overviewListView);
 
             // Enable custom painting
             _detailedTimelinePanel.Paint += OnDetailedTimelinePaint;
             _consolidatedTimelinePanel.Paint += OnConsolidatedTimelinePaint;
-            _legendPanel.Paint += OnLegendPaint;
 
             // Add tooltips
             var toolTip = new ToolTip();
@@ -171,12 +188,12 @@ namespace VirtualDesktopDisplayer
                 Size = new Size(40, 20)
             };
 
-            _datePicker.Location = new Point(45, 5);
-            _previousDayButton.Location = new Point(_datePicker.Right + 10, 5);
-            _nextDayButton.Location = new Point(_previousDayButton.Right + 5, 5);
-            _refreshButton.Location = new Point(_nextDayButton.Right + 10, 5);
-            _openInTimelyButton.Location = new Point(_refreshButton.Right + 10, 5);
-            _statusLabel.Location = new Point(_openInTimelyButton.Right + 20, 8);
+            _datePicker!.Location = new Point(45, 5);
+            _previousDayButton!.Location = new Point(_datePicker.Right + 10, 5);
+            _nextDayButton!.Location = new Point(_previousDayButton.Right + 5, 5);
+            _refreshButton!.Location = new Point(_nextDayButton.Right + 10, 5);
+            _openInTimelyButton!.Location = new Point(_refreshButton.Right + 10, 5);
+            _statusLabel!.Location = new Point(_openInTimelyButton.Right + 20, 8);
 
             topPanel.Controls.AddRange(new Control[] { dateLabel, _datePicker, _previousDayButton, _nextDayButton, _refreshButton, _openInTimelyButton, _statusLabel });
             this.Controls.Add(topPanel);
@@ -205,23 +222,26 @@ namespace VirtualDesktopDisplayer
                 TextAlign = ContentAlignment.MiddleCenter
             };
 
-            var legendHeader = new Label
+            var overviewHeader = new Label
             {
-                Text = "Project Legend",
+                Text = "Desktop Overview",
                 Location = new Point(TIME_SCALE_WIDTH + margin * 3 + TIMELINE_WIDTH * 2, currentY),
-                Size = new Size(250, 25),
+                Size = new Size(300, 25),
                 Font = new Font(Font.FontFamily, 10, FontStyle.Bold),
                 TextAlign = ContentAlignment.MiddleCenter
             };
 
             // Timeline panels - positioned to the right of time scale
-            _detailedTimelinePanel.Location = new Point(TIME_SCALE_WIDTH + margin, timelineY);
-            _consolidatedTimelinePanel.Location = new Point(TIME_SCALE_WIDTH + margin * 2 + TIMELINE_WIDTH, timelineY);
-            _legendPanel.Location = new Point(TIME_SCALE_WIDTH + margin * 3 + TIMELINE_WIDTH * 2, timelineY);
+            _detailedTimelinePanel!.Location = new Point(TIME_SCALE_WIDTH + margin, timelineY);
+            _consolidatedTimelinePanel!.Location = new Point(TIME_SCALE_WIDTH + margin * 2 + TIMELINE_WIDTH, timelineY);
+            
+            // Overview panel positioned to the right of consolidated timeline
+            var overviewX = TIME_SCALE_WIDTH + margin * 3 + TIMELINE_WIDTH * 2;
+            _overviewPanel!.Location = new Point(overviewX, timelineY);
 
             this.Controls.AddRange(new Control[] {
-                detailedHeader, consolidatedHeader, legendHeader,
-                _detailedTimelinePanel, _consolidatedTimelinePanel, _legendPanel
+                detailedHeader, consolidatedHeader, overviewHeader,
+                _detailedTimelinePanel!, _consolidatedTimelinePanel!, _overviewPanel!
             });
 
             // Add time scale on the left
@@ -241,7 +261,7 @@ namespace VirtualDesktopDisplayer
             this.Controls.Add(timeScalePanel);
         }
 
-        private void OnTimeScalePaint(object sender, PaintEventArgs e)
+        private void OnTimeScalePaint(object? sender, PaintEventArgs e)
         {
             e.Graphics.Clear(Color.Transparent);
 
@@ -295,11 +315,11 @@ namespace VirtualDesktopDisplayer
 
         private void SetupEventHandlers()
         {
-            _refreshButton.Click += OnRefreshClick;
-            _datePicker.ValueChanged += OnDateChanged;
-            _previousDayButton.Click += OnPreviousDayClick;
-            _nextDayButton.Click += OnNextDayClick;
-            _openInTimelyButton.Click += OnOpenInTimelyClick;
+            _refreshButton!.Click += OnRefreshClick;
+            _datePicker!.ValueChanged += OnDateChanged;
+            _previousDayButton!.Click += OnPreviousDayClick;
+            _nextDayButton!.Click += OnNextDayClick;
+            _openInTimelyButton!.Click += OnOpenInTimelyClick;
         }
 
         private async void LoadProjectColors()
@@ -425,11 +445,12 @@ namespace VirtualDesktopDisplayer
 
                 if (!allEntries.Any())
                 {
-                    _statusLabel.Text = $"No data found for {date:yyyy-MM-dd}";
+                    _statusLabel!.Text = $"No data found for {date:yyyy-MM-dd}";
                     _statusLabel.ForeColor = Color.Orange;
                     _detailedEntries.Clear();
                     _consolidatedEntries.Clear();
                     RefreshTimelines();
+                    UpdateOverviewList(); // Clear the overview list as well
                     return;
                 }
 
@@ -457,15 +478,60 @@ namespace VirtualDesktopDisplayer
                     }
                 }
 
-                _statusLabel.Text = $"Loaded {_detailedEntries.Count} detailed entries, {_consolidatedEntries.Count} consolidated";
+                _statusLabel!.Text = $"Loaded {_detailedEntries.Count} detailed entries, {_consolidatedEntries.Count} consolidated";
                 _statusLabel.ForeColor = Color.Green;
 
                 RefreshTimelines();
+                UpdateOverviewList();
             }
             catch (Exception ex)
             {
-                _statusLabel.Text = $"Error: {ex.Message}";
+                _statusLabel!.Text = $"Error: {ex.Message}";
                 _statusLabel.ForeColor = Color.Red;
+            }
+        }
+
+        /// <summary>
+        /// Calculates total duration per desktop name based on consolidated entries and updates the overview list.
+        /// </summary>
+        private void UpdateOverviewList()
+        {
+            if (_overviewListView == null) return;
+
+            _overviewListView.Items.Clear();
+
+            // Calculate total duration per desktop based on consolidated entries
+            var desktopDurations = _consolidatedEntries
+                .GroupBy(entry => entry.DesktopName)
+                .Select(group => new
+                {
+                    DesktopName = group.Key,
+                    TotalDuration = TimeSpan.FromTicks(group.Sum(entry => entry.Duration.Ticks)),
+                    EntryCount = group.Count()
+                })
+                .OrderByDescending(item => item.TotalDuration)
+                .ToList();
+
+            // Populate the overview list
+            foreach (var item in desktopDurations)
+            {
+                var listViewItem = new ListViewItem(item.DesktopName);
+                
+                // Format duration as HH:mm:ss
+                var durationText = $"{(int)item.TotalDuration.TotalHours:00}:{item.TotalDuration.Minutes:00}:{item.TotalDuration.Seconds:00}";
+                listViewItem.SubItems.Add(durationText);
+                
+                // Enhanced tooltip with full desktop name and detailed information
+                var totalMinutes = item.TotalDuration.TotalMinutes;
+                var tooltipText = $"Desktop: {item.DesktopName}\n" +
+                                  $"Total Duration: {durationText}\n" +
+                                  $"Minutes: {totalMinutes:F1}\n" +
+                                  $"Sessions: {item.EntryCount}\n" +
+                                  $"Avg per session: {(totalMinutes / item.EntryCount):F1} min";
+                
+                listViewItem.ToolTipText = tooltipText;
+
+                _overviewListView.Items.Add(listViewItem);
             }
         }
 
@@ -474,7 +540,7 @@ namespace VirtualDesktopDisplayer
             if (!entries.Any()) return;
 
             var startTimes = entries.Select(e => e.StartTime);
-            var endTimes = entries.Where(e => e.EndTime.HasValue).Select(e => e.EndTime.Value);
+            var endTimes = entries.Where(e => e.EndTime.HasValue).Select(e => e.EndTime!.Value);
             
             var earliestTime = startTimes.Min();
             var latestTime = endTimes.Any() ? endTimes.Max() : DateTime.Now;
@@ -490,9 +556,9 @@ namespace VirtualDesktopDisplayer
 
         private void RefreshTimelines()
         {
-            _detailedTimelinePanel.Invalidate();
-            _consolidatedTimelinePanel.Invalidate();
-            _legendPanel.Invalidate();
+            _detailedTimelinePanel!.Invalidate();
+            _consolidatedTimelinePanel!.Invalidate();
+            _overviewListView!.Invalidate();
             
             // Also refresh time scale to update labels
             foreach (Control control in this.Controls)
@@ -505,12 +571,12 @@ namespace VirtualDesktopDisplayer
             }
         }
 
-        private void OnDetailedTimelinePaint(object sender, PaintEventArgs e)
+        private void OnDetailedTimelinePaint(object? sender, PaintEventArgs e)
         {
             DrawTimeline(e.Graphics, _detailedEntries, "Detailed Timeline");
         }
 
-        private void OnConsolidatedTimelinePaint(object sender, PaintEventArgs e)
+        private void OnConsolidatedTimelinePaint(object? sender, PaintEventArgs e)
         {
             DrawTimeline(e.Graphics, _consolidatedEntries, "Consolidated Timeline");
         }
@@ -523,8 +589,8 @@ namespace VirtualDesktopDisplayer
 
             // Use dynamic time range if available, otherwise fall back to full day
             var useTimeRange = _timeRangeStart != default && _timeRangeEnd != default;
-            var rangeStart = useTimeRange ? _timeRangeStart : _datePicker.Value.Date;
-            var rangeEnd = useTimeRange ? _timeRangeEnd : _datePicker.Value.Date.AddDays(1);
+            var rangeStart = useTimeRange ? _timeRangeStart : _datePicker!.Value.Date;
+            var rangeEnd = useTimeRange ? _timeRangeEnd : _datePicker!.Value.Date.AddDays(1);
             var rangeDuration = rangeEnd - rangeStart;
 
             // Draw time grid lines based on the time range
@@ -637,68 +703,13 @@ namespace VirtualDesktopDisplayer
             }
         }
 
-        private void OnLegendPaint(object sender, PaintEventArgs e)
-        {
-            e.Graphics.Clear(Color.FromArgb(250, 250, 250));
-
-            var y = 10;
-            var minLineHeight = 25;
-
-            using (var font = new Font("Arial", 9))
-            using (var textBrush = new SolidBrush(Color.Black))
-            {
-                var projectInfo = new HashSet<ProjectInfo>();
-                
-                // Collect all unique projects from current entries
-                foreach (var entry in _detailedEntries.Concat(_consolidatedEntries))
-                {
-                    if (_entryProjectMappings.ContainsKey(entry))
-                    {
-                        projectInfo.Add(_entryProjectMappings[entry]);
-                    }
-                }
-
-                foreach (var project in projectInfo.OrderBy(p => p.Name))
-                {
-                    var color = _projectColors.ContainsKey(project.Id) 
-                        ? _projectColors[project.Id] 
-                        : Color.LightGray;
-
-                    // Draw color box
-                    using (var brush = new SolidBrush(color))
-                    {
-                        e.Graphics.FillRectangle(brush, 10, y, 15, 15);
-                    }
-                    e.Graphics.DrawRectangle(Pens.Black, 10, y, 15, 15);
-
-                    // Measure text height to handle multi-line text
-                    var textRect = new RectangleF(30, y, 210, 1000); // Large height for measurement
-                    var textFormat = new StringFormat
-                    {
-                        LineAlignment = StringAlignment.Near,
-                        Alignment = StringAlignment.Near,
-                        Trimming = StringTrimming.Word
-                    };
-
-                    var textSize = e.Graphics.MeasureString(project.Name, font, (int)textRect.Width, textFormat);
-                    var actualHeight = Math.Max(minLineHeight, (int)Math.Ceiling(textSize.Height));
-
-                    // Draw project name with proper height
-                    var drawRect = new RectangleF(30, y, 210, actualHeight);
-                    e.Graphics.DrawString(project.Name, font, textBrush, drawRect, textFormat);
-
-                    y += actualHeight + 5; // Add some spacing between items
-                }
-            }
-        }
-
         private Color GetContrastColor(Color background)
         {
             var brightness = (background.R * 0.299 + background.G * 0.587 + background.B * 0.114) / 255;
             return brightness > 0.5 ? Color.Black : Color.White;
         }
 
-        private void ShowTimelineTooltip(object sender, MouseEventArgs e, List<DesktopUsageEntry> entries, ToolTip toolTip)
+        private void ShowTimelineTooltip(object? sender, MouseEventArgs e, List<DesktopUsageEntry> entries, ToolTip toolTip)
         {
             var panel = sender as Panel;
             if (panel == null) return;
@@ -716,7 +727,7 @@ namespace VirtualDesktopDisplayer
             }
             else
             {
-                var startOfDay = _datePicker.Value.Date;
+                var startOfDay = _datePicker!.Value.Date;
                 var minutesFromTop = (e.Y / (double)HOUR_HEIGHT) * 60;
                 timeAtMouse = startOfDay.AddMinutes(minutesFromTop);
             }
@@ -745,27 +756,27 @@ namespace VirtualDesktopDisplayer
             }
         }
 
-        private void OnRefreshClick(object sender, EventArgs e)
+        private void OnRefreshClick(object? sender, EventArgs e)
         {
-            LoadDataForDate(_datePicker.Value.Date);
+            LoadDataForDate(_datePicker!.Value.Date);
         }
 
-        private void OnDateChanged(object sender, EventArgs e)
+        private void OnDateChanged(object? sender, EventArgs e)
         {
-            LoadDataForDate(_datePicker.Value.Date);
+            LoadDataForDate(_datePicker!.Value.Date);
         }
 
-        private void OnPreviousDayClick(object sender, EventArgs e)
+        private void OnPreviousDayClick(object? sender, EventArgs e)
         {
-            _datePicker.Value = _datePicker.Value.AddDays(-1);
+            _datePicker!.Value = _datePicker.Value.AddDays(-1);
         }
 
-        private void OnNextDayClick(object sender, EventArgs e)
+        private void OnNextDayClick(object? sender, EventArgs e)
         {
-            _datePicker.Value = _datePicker.Value.AddDays(1);
+            _datePicker!.Value = _datePicker.Value.AddDays(1);
         }
 
-        private async void OnOpenInTimelyClick(object sender, EventArgs e)
+        private async void OnOpenInTimelyClick(object? sender, EventArgs e)
         {
             try
             {
@@ -805,7 +816,7 @@ namespace VirtualDesktopDisplayer
                 }
 
                 // Get usage data for the selected date
-                var selectedDate = _datePicker.Value.Date;
+                var selectedDate = _datePicker!.Value.Date;
                 var allEntries = _usageTracker.GetAllUsageHistory();
                 
                 // Check if we have any data for the selected date
@@ -833,7 +844,7 @@ namespace VirtualDesktopDisplayer
                 }
 
                 // Show progress indication
-                _statusLabel.Text = $"Uploading {selectedDate:yyyy-MM-dd} to Timely...";
+                _statusLabel!.Text = $"Uploading {selectedDate:yyyy-MM-dd} to Timely...";
                 _statusLabel.ForeColor = Color.Blue;
                 Application.DoEvents();
 
@@ -845,13 +856,13 @@ namespace VirtualDesktopDisplayer
                     if (uploadResult.Success)
                     {
                         var successMessage = $"Successfully uploaded {uploadResult.SuccessCount} entries for {selectedDate:yyyy-MM-dd} to Timely.";
-                        _statusLabel.Text = "Upload completed successfully";
+                        _statusLabel!.Text = "Upload completed successfully";
                         _statusLabel.ForeColor = Color.Green;
                         MessageBox.Show(successMessage, "Upload Successful", MessageBoxButtons.OK, MessageBoxIcon.Information);
                     }
                     else
                     {
-                        _statusLabel.Text = "Upload failed";
+                        _statusLabel!.Text = "Upload failed";
                         _statusLabel.ForeColor = Color.Red;
                         
                         var errorMessage = $"No entries were successfully uploaded for {selectedDate:yyyy-MM-dd} ({uploadResult.FailureCount} failed)";
@@ -887,7 +898,7 @@ namespace VirtualDesktopDisplayer
             }
             catch (Exception ex)
             {
-                _statusLabel.Text = "Upload error";
+                _statusLabel!.Text = "Upload error";
                 _statusLabel.ForeColor = Color.Red;
                 MessageBox.Show($"Error uploading to Timely: {ex.Message}", "Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
             }
