@@ -4,6 +4,7 @@ using System.IO;
 using System.Linq;
 using System.Text.Json;
 using System.Text.Json.Serialization;
+using System.Text.RegularExpressions;
 
 namespace VirtualDesktopHelper.Configuration
 {
@@ -344,9 +345,8 @@ namespace VirtualDesktopHelper.Configuration
 
                 // Use regex with word boundaries to match whole words only
                 // \b matches word boundaries (spaces, punctuation, start/end of string)
-                var pattern = $@"\b{System.Text.RegularExpressions.Regex.Escape(keyword)}\b";
-                return System.Text.RegularExpressions.Regex.IsMatch(text, pattern, 
-                    System.Text.RegularExpressions.RegexOptions.IgnoreCase);
+                var pattern = $@"\b{Regex.Escape(keyword)}\b";
+                return Regex.IsMatch(text, pattern, RegexOptions.IgnoreCase);
             });
         }
 
