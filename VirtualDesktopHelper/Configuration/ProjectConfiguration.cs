@@ -328,6 +328,7 @@ namespace VirtualDesktopHelper.Configuration
 
         /// <summary>
         /// Determines if any of the keywords match the given text (case insensitive).
+        /// Uses word boundary matching to ensure keywords are matched as whole words.
         /// </summary>
         /// <param name="text">The text to search for keywords.</param>
         /// <returns>True if any keyword is found in the text.</returns>
@@ -336,11 +337,17 @@ namespace VirtualDesktopHelper.Configuration
             if (string.IsNullOrWhiteSpace(text))
                 return false;
 
-            var lowerText = text.ToLowerInvariant();
             return Keywords.Any(keyword => 
-                !string.IsNullOrWhiteSpace(keyword) && 
-                lowerText.Contains(keyword.ToLowerInvariant())
-            );
+            {
+                if (string.IsNullOrWhiteSpace(keyword))
+                    return false;
+
+                // Use regex with word boundaries to match whole words only
+                // \b matches word boundaries (spaces, punctuation, start/end of string)
+                var pattern = $@"\b{System.Text.RegularExpressions.Regex.Escape(keyword)}\b";
+                return System.Text.RegularExpressions.Regex.IsMatch(text, pattern, 
+                    System.Text.RegularExpressions.RegexOptions.IgnoreCase);
+            });
         }
 
         /// <summary>
