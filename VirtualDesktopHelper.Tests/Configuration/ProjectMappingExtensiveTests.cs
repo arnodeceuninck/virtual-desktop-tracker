@@ -130,19 +130,16 @@ namespace VirtualDesktopHelper.Tests.Configuration
         }
 
         [Theory]
-        [InlineData("ai", "ai project", true)]           // Should match: whole word
-        [InlineData("ai", "working on ai", true)]        // Should match: whole word
+        [InlineData("ai", "ai project", true)]           // Should match: whole word at start
+        [InlineData("ai", "working on ai", true)]        // Should match: whole word at end
         [InlineData("ai", "ai", true)]                   // Should match: exact match
         [InlineData("ai", "AI development", true)]       // Should match: case insensitive
-        [InlineData("ai", "Mails", false)]               // Should NOT match: substring
-        [InlineData("ai", "Daily scrum", false)]         // Should NOT match: substring
-        [InlineData("ai", "email", false)]               // Should NOT match: substring
-        [InlineData("ai", "rained", false)]              // Should NOT match: substring
-        [InlineData("test", "testing", false)]           // Should NOT match: substring
-        [InlineData("test", "latest", false)]            // Should NOT match: substring
-        [InlineData("test", "test case", true)]          // Should match: whole word
-        [InlineData("docker", "docker development", true)] // Should match: whole word
-        [InlineData("docker", "docker-compose", true)]   // Should match: word with hyphen
+        [InlineData("ai", "Mails", false)]               // Should NOT match: substring in middle
+        [InlineData("ai", "Daily scrum", false)]         // Should NOT match: substring at end
+        [InlineData("ai", "email", false)]               // Should NOT match: substring at start
+        [InlineData("test", "testing", false)]           // Should NOT match: prefix of another word
+        [InlineData("test", "latest", false)]            // Should NOT match: suffix of another word
+        [InlineData("docker", "docker-compose", true)]   // Should match: word with hyphen separator
         public void MatchesKeywords_ShouldUseWordBoundaries(string keyword, string input, bool expected)
         {
             // Arrange
