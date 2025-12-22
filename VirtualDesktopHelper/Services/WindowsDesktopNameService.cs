@@ -93,6 +93,25 @@ namespace VirtualDesktopHelper.Services
             }, "CreateNewDesktop", _config.SubprocessRetryCount, _config.SubprocessRetryDelay);
         }
 
+        public bool CloseAllDesktopsExceptCurrent()
+        {
+            return _errorHandler.ExecuteWithRetry(() =>
+            {
+                string executablePath = GetVirtualDesktopExecutablePath();
+                return ExecuteCloseAllDesktopsExceptCurrentCommand(executablePath);
+            }, "CloseAllDesktopsExceptCurrent", _config.SubprocessRetryCount, _config.SubprocessRetryDelay);
+        }
+
+        public List<string> GetDesktopsToClose()
+        {
+            return _errorHandler.ExecuteWithRetry(() =>
+            {
+                var allDesktops = GetAllDesktopNames();
+                var currentDesktop = GetCurrentDesktopName();
+                return FilterDesktopsToClose(allDesktops, currentDesktop);
+            }, "GetDesktopsToClose", _config.SubprocessRetryCount, _config.SubprocessRetryDelay);
+        }
+
         private string GetCurrentDesktopNameFromSubprocess()
         {
             string executablePath = GetVirtualDesktopExecutablePath();
@@ -273,6 +292,66 @@ namespace VirtualDesktopHelper.Services
                 _errorHandler.LogError(ex, "ExecuteCreateNewDesktopCommand", new { SwitchToNew = switchToNew });
                 return false;
             }
+        }
+
+        private bool ExecuteCloseAllDesktopsExceptCurrentCommand(string executablePath)
+        {
+            try
+            {
+                // Get all desktop names and current desktop first (snapshot)
+                var allDesktops = GetAllDesktopNames();
+                var currentDesktop = GetCurrentDesktopName();
+
+                if (allDesktops.Count <= 1)
+                {
+                    // Only one desktop or no desktops, nothing to close
+                    return true;
+                }
+
+                // Filter and capture the list of desktops to close before starting the loop
+                // This ensures we work with a snapshot and avoid collection modification issues
+                var desktopsToClose = FilterDesktopsToClose(allDesktops, currentDesktop);
+
+                // Close all desktops in the captured list
+                foreach (var desktop in desktopsToClose)
+                {
+                    try
+                    {
+                        // Use /Remove command to close a specific desktop
+                        ExecuteVirtualDesktopCommand(executablePath, $"/Remove:\"{desktop}\"");
+                    }
+                    catch (Exception ex)
+                    {
+                        // Log but continue with other desktops
+                        _errorHandler.LogWarning($"Failed to close desktop '{desktop}': {ex.Message}", "ExecuteCloseAllDesktopsExceptCurrentCommand");
+                    }
+                }
+
+                return true;
+            }
+            catch (Exception ex)
+            {
+                _errorHandler.LogError(ex, "ExecuteCloseAllDesktopsExceptCurrentCommand", null);
+                return false;
+            }
+        }
+
+        /// <summary>
+        /// Filters the list of desktops to determine which ones should be closed.
+        /// Excludes the current desktop, error states, and special desktop names.
+        /// </summary>
+        /// <param name="allDesktops">List of all desktop names</param>
+        /// <param name="currentDesktop">The current active desktop name</param>
+        /// <returns>List of desktop names that should be closed</returns>
+        private static List<string> FilterDesktopsToClose(List<string> allDesktops, string currentDesktop)
+        {
+            return allDesktops
+                .Where(desktop => desktop != currentDesktop && 
+                                !string.IsNullOrWhiteSpace(desktop) && 
+                                desktop != "Screen Off" && 
+                                !desktop.StartsWith("Error:") &&
+                                desktop != "Unknown Desktop")
+                .ToList();
         }
     }
 }

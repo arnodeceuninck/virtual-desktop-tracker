@@ -333,6 +333,9 @@ namespace VirtualDesktopDisplayer
             // Add option to create new desktop
             contextMenu.Items.Add("Create New Desktop", null, OnCreateNewDesktopClick);
             
+            // Add option to close all other desktops
+            contextMenu.Items.Add("Close All Other Desktops", null, OnCloseAllOtherDesktopsClick);
+            
             contextMenu.Items.Add(new ToolStripSeparator());
             
             // Group extras options under a single 'Extras' menu
@@ -749,6 +752,64 @@ namespace VirtualDesktopDisplayer
             {
                 System.Diagnostics.Debug.WriteLine($"Error creating new desktop: {ex.Message}");
                 _applicationService.ShowError($"An error occurred while creating a new desktop: {ex.Message}");
+            }
+        }
+
+        /// <summary>
+        /// Handles clicking on "Close All Other Desktops" to close all virtual desktops except the current active one.
+        /// </summary>
+        /// <param name="sender">The sender object</param>
+        /// <param name="e">Event arguments</param>
+        private void OnCloseAllOtherDesktopsClick(object? sender, EventArgs e)
+        {
+            try
+            {
+                // Get the list of desktops that will be closed using the service method
+                var desktopsToClose = _desktopNameService.GetDesktopsToClose();
+                var currentDesktop = _desktopNameService.GetCurrentDesktopName();
+
+                if (desktopsToClose.Count == 0)
+                {
+                    _applicationService.ShowInformation("There are no other desktops to close. You are on the only virtual desktop.");
+                    return;
+                }
+
+                // Confirm the action
+                string desktopList = string.Join("\n• ", desktopsToClose);
+                var confirmResult = MessageBox.Show(
+                    $"This will close {desktopsToClose.Count} virtual desktop(s) and keep only \"{currentDesktop}\".\n\n" +
+                    $"Desktops to be closed:\n• {desktopList}\n\n" +
+                    $"All windows from these desktops will be moved to the current desktop.\n\n" +
+                    $"Are you sure you want to continue?",
+                    "Confirm Close All Other Desktops",
+                    MessageBoxButtons.YesNo,
+                    MessageBoxIcon.Warning);
+
+                if (confirmResult != DialogResult.Yes)
+                {
+                    return;
+                }
+
+                // Perform the close operation
+                bool success = _desktopNameService.CloseAllDesktopsExceptCurrent();
+
+                if (success)
+                {
+                    _applicationService.ShowInformation(
+                        $"Successfully closed all other virtual desktops.\n\n" +
+                        $"The current desktop \"{currentDesktop}\" is now the only active desktop.");
+                }
+                else
+                {
+                    _applicationService.ShowError(
+                        "Failed to close all other desktops. Some desktops may not have been closed.\n\n" +
+                        "Please try again or close them manually using Ctrl+Win+F4.");
+                }
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"Error closing all other desktops: {ex.Message}");
+                _applicationService.ShowError($"An error occurred while closing other desktops: {ex.Message}");
             }
         }
 

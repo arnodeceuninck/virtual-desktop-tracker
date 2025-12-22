@@ -132,5 +132,72 @@ namespace VirtualDesktopHelper.Tests.Services
             // Assert
             result.Should().BeTrue();
         }
+
+        [Fact]
+        public void CloseAllDesktopsExceptCurrent_ShouldCallErrorHandlerExecuteWithRetry()
+        {
+            // Arrange
+            _mockErrorHandler.Setup(x => x.ExecuteWithRetry(
+                It.IsAny<Func<bool>>(),
+                "CloseAllDesktopsExceptCurrent",
+                It.IsAny<int>(),
+                It.IsAny<TimeSpan>()))
+                .Returns(true);
+
+            // Act
+            var result = _service.CloseAllDesktopsExceptCurrent();
+
+            // Assert
+            result.Should().BeTrue();
+            _mockErrorHandler.Verify(x => x.ExecuteWithRetry(
+                It.IsAny<Func<bool>>(),
+                "CloseAllDesktopsExceptCurrent",
+                _testConfig.SubprocessRetryCount,
+                _testConfig.SubprocessRetryDelay), 
+                Times.Once);
+        }
+
+        [Fact]
+        public void CloseAllDesktopsExceptCurrent_ShouldReturnFalse_WhenOperationFails()
+        {
+            // Arrange
+            _mockErrorHandler.Setup(x => x.ExecuteWithRetry(
+                It.IsAny<Func<bool>>(),
+                "CloseAllDesktopsExceptCurrent",
+                It.IsAny<int>(),
+                It.IsAny<TimeSpan>()))
+                .Returns(false);
+
+            // Act
+            var result = _service.CloseAllDesktopsExceptCurrent();
+
+            // Assert
+            result.Should().BeFalse();
+        }
+
+        [Fact]
+        public void GetDesktopsToClose_ShouldCallErrorHandlerExecuteWithRetry()
+        {
+            // Arrange
+            var expectedDesktops = new List<string> { "Desktop 2", "Desktop 3" };
+            _mockErrorHandler.Setup(x => x.ExecuteWithRetry(
+                It.IsAny<Func<List<string>>>(),
+                "GetDesktopsToClose",
+                It.IsAny<int>(),
+                It.IsAny<TimeSpan>()))
+                .Returns(expectedDesktops);
+
+            // Act
+            var result = _service.GetDesktopsToClose();
+
+            // Assert
+            result.Should().BeEquivalentTo(expectedDesktops);
+            _mockErrorHandler.Verify(x => x.ExecuteWithRetry(
+                It.IsAny<Func<List<string>>>(),
+                "GetDesktopsToClose",
+                _testConfig.SubprocessRetryCount,
+                _testConfig.SubprocessRetryDelay), 
+                Times.Once);
+        }
     }
 }
