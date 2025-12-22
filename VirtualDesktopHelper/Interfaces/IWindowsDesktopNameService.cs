@@ -39,5 +39,11 @@ namespace VirtualDesktopHelper.Interfaces
         /// <param name="switchToNew">Whether to switch to the newly created desktop.</param>
         /// <returns>True if the desktop was created successfully, false otherwise.</returns>
         bool CreateNewDesktop(bool switchToNew = true);
+
+        /// <summary>
+        /// Closes all virtual desktops except the current one.
+        /// </summary>
+        /// <returns>True if the operation was successful, false otherwise.</returns>
+        bool CloseAllDesktopsExceptCurrent();
     }
 }

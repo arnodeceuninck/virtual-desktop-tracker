@@ -93,6 +93,15 @@ namespace VirtualDesktopHelper.Services
             }, "CreateNewDesktop", _config.SubprocessRetryCount, _config.SubprocessRetryDelay);
         }
 
+        public bool CloseAllDesktopsExceptCurrent()
+        {
+            return _errorHandler.ExecuteWithRetry(() =>
+            {
+                string executablePath = GetVirtualDesktopExecutablePath();
+                return ExecuteCloseAllDesktopsExceptCurrentCommand(executablePath);
+            }, "CloseAllDesktopsExceptCurrent", _config.SubprocessRetryCount, _config.SubprocessRetryDelay);
+        }
+
         private string GetCurrentDesktopNameFromSubprocess()
         {
             string executablePath = GetVirtualDesktopExecutablePath();
@@ -271,6 +280,51 @@ namespace VirtualDesktopHelper.Services
             catch (Exception ex)
             {
                 _errorHandler.LogError(ex, "ExecuteCreateNewDesktopCommand", new { SwitchToNew = switchToNew });
+                return false;
+            }
+        }
+
+        private bool ExecuteCloseAllDesktopsExceptCurrentCommand(string executablePath)
+        {
+            try
+            {
+                // Get all desktop names
+                var allDesktops = GetAllDesktopNames();
+                var currentDesktop = GetCurrentDesktopName();
+
+                if (allDesktops.Count <= 1)
+                {
+                    // Only one desktop or no desktops, nothing to close
+                    return true;
+                }
+
+                // Close all desktops except the current one
+                // We'll iterate through all desktops and remove those that are not current
+                foreach (var desktop in allDesktops)
+                {
+                    if (desktop != currentDesktop && 
+                        !string.IsNullOrWhiteSpace(desktop) && 
+                        desktop != "Screen Off" && 
+                        !desktop.StartsWith("Error:"))
+                    {
+                        try
+                        {
+                            // Use /Remove command to close a specific desktop
+                            ExecuteVirtualDesktopCommand(executablePath, $"/Remove:\"{desktop}\"");
+                        }
+                        catch (Exception ex)
+                        {
+                            // Log but continue with other desktops
+                            _errorHandler.LogWarning($"Failed to close desktop '{desktop}': {ex.Message}", "ExecuteCloseAllDesktopsExceptCurrentCommand");
+                        }
+                    }
+                }
+
+                return true;
+            }
+            catch (Exception ex)
+            {
+                _errorHandler.LogError(ex, "ExecuteCloseAllDesktopsExceptCurrentCommand", null);
                 return false;
             }
         }
