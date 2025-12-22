@@ -45,5 +45,12 @@ namespace VirtualDesktopHelper.Interfaces
         /// </summary>
         /// <returns>True if the operation was successful, false otherwise.</returns>
         bool CloseAllDesktopsExceptCurrent();
+
+        /// <summary>
+        /// Gets the list of desktops that would be closed by CloseAllDesktopsExceptCurrent.
+        /// Useful for preview/confirmation dialogs.
+        /// </summary>
+        /// <returns>List of desktop names that would be closed</returns>
+        List<string> GetDesktopsToClose();
     }
 }

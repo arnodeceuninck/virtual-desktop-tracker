@@ -764,16 +764,9 @@ namespace VirtualDesktopDisplayer
         {
             try
             {
-                // Get all desktop names to show user what will be closed
-                var allDesktops = _desktopNameService.GetAllDesktopNames();
+                // Get the list of desktops that will be closed using the service method
+                var desktopsToClose = _desktopNameService.GetDesktopsToClose();
                 var currentDesktop = _desktopNameService.GetCurrentDesktopName();
-                
-                // Filter to get only the desktops that will be closed
-                var desktopsToClose = allDesktops
-                    .Where(name => !string.IsNullOrWhiteSpace(name))
-                    .Where(name => name != currentDesktop)
-                    .Where(name => !name.StartsWith("Error:") && name != "Unknown Desktop" && name != "Screen Off")
-                    .ToList();
 
                 if (desktopsToClose.Count == 0)
                 {
