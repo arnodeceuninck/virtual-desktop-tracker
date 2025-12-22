@@ -284,6 +284,11 @@ namespace VirtualDesktopDisplayer
                     {
                         _config.ApiBaseUrl = parsed.ApiBaseUrl;
                     }
+                    // Set timezone offset if extracted from curl request
+                    if (!string.IsNullOrEmpty(parsed.TimezoneOffset))
+                    {
+                        _config.TimezoneOffset = parsed.TimezoneOffset;
+                    }
 
                     // Update manual tab with parsed values
                     LoadCurrentConfiguration();

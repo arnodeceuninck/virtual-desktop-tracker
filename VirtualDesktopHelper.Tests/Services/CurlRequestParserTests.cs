@@ -498,5 +498,81 @@ namespace VirtualDesktopHelper.Tests.Services
         }
 
         #endregion
+
+        #region Timezone Offset Tests
+
+        [Theory]
+        [Trait("Category", "TimezoneOffset")]
+        [InlineData("+02:00")]
+        [InlineData("-05:00")]
+        [InlineData("+00:00")]
+        [InlineData("+05:30")]
+        public void ParseCurlRequest_ShouldExtractTimezoneOffset_FromTimestamp(string expectedOffset)
+        {
+            // Arrange
+            var curlRequest = $@"curl ""https://app.timelyapp.com/123456/hours"" \
+  -H ""x-csrf-token: test_token"" \
+  -H ""tl-socket-id: 123.456"" \
+  -b ""test=cookie"" \
+  --data-raw '{{""event"":{{""from"":""2025-08-23T10:00:00.000{expectedOffset}"",""to"":""2025-08-23T11:00:00.000{expectedOffset}"",""project_id"":123,""user_id"":456}}}}'";
+
+            // Act
+            var result = _parser.ParseCurlRequest(curlRequest);
+
+            // Assert
+            result.Should().NotBeNull();
+            result.IsValid.Should().BeTrue();
+            result.TimezoneOffset.Should().Be(expectedOffset);
+
+            _output.WriteLine($"Extracted timezone offset: {result.TimezoneOffset}");
+        }
+
+        [Fact]
+        [Trait("Category", "TimezoneOffset")]
+        public void ParseCurlRequest_ShouldHandleMissingTimezoneOffset()
+        {
+            // Arrange - curl request without timezone in timestamp
+            var curlRequest = @"curl ""https://app.timelyapp.com/123456/hours"" \
+  -H ""x-csrf-token: test_token"" \
+  -H ""tl-socket-id: 123.456"" \
+  -b ""test=cookie"" \
+  --data-raw '{""event"":{""project_id"":123,""user_id"":456}}'";
+
+            // Act
+            var result = _parser.ParseCurlRequest(curlRequest);
+
+            // Assert
+            result.Should().NotBeNull();
+            result.IsValid.Should().BeTrue();
+            result.TimezoneOffset.Should().BeNull();
+
+            _output.WriteLine("Handled missing timezone offset gracefully");
+        }
+
+        [Fact]
+        [Trait("Category", "TimezoneOffset")]
+        public void ParseCurlRequest_ShouldExtractTimezoneFromComplexRealWorldExample()
+        {
+            // Arrange - Based on the issue description with DST timezone
+            var curlRequest = @"curl ""https://app.timelyapp.com/946869/hours"" \
+  -H ""accept: application/json"" \
+  -H ""x-csrf-token: test_token"" \
+  -H ""tl-socket-id: 123.456"" \
+  -b ""test=cookie"" \
+  --data-raw '{""event"":{""day"":""2025-08-23"",""from"":""2025-08-23T09:30:00.000+02:00"",""to"":""2025-08-23T10:30:00.000+02:00"",""project_id"":123,""user_id"":456}}'";
+
+            // Act
+            var result = _parser.ParseCurlRequest(curlRequest);
+
+            // Assert
+            result.Should().NotBeNull();
+            result.IsValid.Should().BeTrue();
+            result.TimezoneOffset.Should().Be("+02:00");
+            result.WorkspaceId.Should().Be("946869");
+
+            _output.WriteLine($"Extracted timezone from real-world example: {result.TimezoneOffset}");
+        }
+
+        #endregion
     }
 }

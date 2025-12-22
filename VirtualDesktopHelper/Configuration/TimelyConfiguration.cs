@@ -50,9 +50,20 @@ namespace VirtualDesktopHelper.Configuration
         public string CookieString { get; set; } = "";
 
         /// <summary>
-        /// Default timezone offset for timestamps
+        /// Stored timezone offset for timestamps (may be overridden from curl request)
+        /// If null, will be calculated dynamically based on system timezone
         /// </summary>
-        public string TimezoneOffset { get; set; } = "+02:00";
+        private string? _timezoneOffset;
+
+        /// <summary>
+        /// Gets or sets the timezone offset for timestamps.
+        /// If not explicitly set, returns the current system timezone offset (accounting for DST).
+        /// </summary>
+        public string TimezoneOffset 
+        { 
+            get => _timezoneOffset ?? GetSystemTimezoneOffset();
+            set => _timezoneOffset = value;
+        }
 
         /// <summary>
         /// Filename for storing Timely configuration
@@ -161,6 +172,20 @@ namespace VirtualDesktopHelper.Configuration
             {
                 _instance = null;
             }
+        }
+
+        /// <summary>
+        /// Gets the current system timezone offset in ISO 8601 format (e.g., "+02:00" or "-05:00").
+        /// This method accounts for daylight saving time automatically.
+        /// </summary>
+        /// <returns>Timezone offset string in format +HH:MM or -HH:MM</returns>
+        private static string GetSystemTimezoneOffset()
+        {
+            var offset = TimeZoneInfo.Local.GetUtcOffset(DateTime.Now);
+            var sign = offset.TotalMinutes >= 0 ? "+" : "-";
+            var hours = Math.Abs(offset.Hours).ToString("D2");
+            var minutes = Math.Abs(offset.Minutes).ToString("D2");
+            return $"{sign}{hours}:{minutes}";
         }
     }
 }
