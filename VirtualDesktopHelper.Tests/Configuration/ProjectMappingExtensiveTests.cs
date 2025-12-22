@@ -129,6 +129,58 @@ namespace VirtualDesktopHelper.Tests.Configuration
             result.Should().BeFalse();
         }
 
+        [Theory]
+        [InlineData("ai", "ai project", true)]           // Should match: whole word at start
+        [InlineData("ai", "working on ai", true)]        // Should match: whole word at end
+        [InlineData("ai", "ai", true)]                   // Should match: exact match
+        [InlineData("ai", "AI development", true)]       // Should match: case insensitive
+        [InlineData("ai", "Mails", false)]               // Should NOT match: substring in middle
+        [InlineData("ai", "Daily scrum", false)]         // Should NOT match: substring at end
+        [InlineData("ai", "email", false)]               // Should NOT match: substring at start
+        [InlineData("test", "testing", false)]           // Should NOT match: prefix of another word
+        [InlineData("test", "latest", false)]            // Should NOT match: suffix of another word
+        [InlineData("docker", "docker-compose", true)]   // Should match: word with hyphen separator
+        public void MatchesKeywords_ShouldUseWordBoundaries(string keyword, string input, bool expected)
+        {
+            // Arrange
+            var mapping = new ProjectMapping
+            {
+                Project = new ProjectInfo { Id = 1L, Name = "Test Project" },
+                Keywords = new List<string> { keyword }
+            };
+
+            // Act
+            var result = mapping.MatchesKeywords(input);
+
+            // Assert
+            result.Should().Be(expected, $"keyword '{keyword}' in '{input}' should {(expected ? "" : "not ")}match");
+            _output.WriteLine($"Keyword '{keyword}' in '{input}': {result} (expected: {expected})");
+        }
+
+        [Theory]
+        [InlineData("ai training", "ai training session", true)]   // Should match: multi-word keyword
+        [InlineData("ai training", "attending ai training", true)] // Should match: multi-word keyword
+        [InlineData("ai training", "ai session", false)]           // Should NOT match: partial match
+        [InlineData("ai training", "training ai models", false)]   // Should NOT match: words reversed
+        [InlineData("daily scrum", "daily scrum meeting", true)]   // Should match: multi-word keyword
+        [InlineData("daily scrum", "Mails", false)]                // Should NOT match: no relation
+        public void MatchesKeywords_ShouldHandleMultiWordKeywords(string keyword, string input, bool expected)
+        {
+            // Arrange
+            var mapping = new ProjectMapping
+            {
+                Project = new ProjectInfo { Id = 1L, Name = "Test Project" },
+                Keywords = new List<string> { keyword }
+            };
+
+            // Act
+            var result = mapping.MatchesKeywords(input);
+
+            // Assert
+            result.Should().Be(expected, $"keyword '{keyword}' in '{input}' should {(expected ? "" : "not ")}match");
+            _output.WriteLine($"Keyword '{keyword}' in '{input}': {result} (expected: {expected})");
+        }
+
         [Fact]
         public void MatchesKeywords_ShouldHandleEmptyKeywordsList()
         {
@@ -318,7 +370,7 @@ namespace VirtualDesktopHelper.Tests.Configuration
             {
                 new ProjectInfo { Id = 1L, Name = "Development" },
                 new List<string> { "dev", "code" },
-                "coding development",
+                "dev code review",  // Changed to use exact word matches
                 true
             };
             
