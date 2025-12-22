@@ -56,6 +56,9 @@ namespace VirtualDesktopHelper.Services
                 // Extract data payload for project_id and user_id
                 ExtractDataPayload(cleanedCurl, result);
 
+                // Extract timezone offset from timestamps in the payload
+                ExtractTimezoneOffset(cleanedCurl, result);
+
                 // Validate the extracted data
                 ValidateExtractedData(result);
             }
@@ -198,6 +201,21 @@ namespace VirtualDesktopHelper.Services
                 {
                     result.ErrorMessage = $"Failed to parse JSON data: {ex.Message}";
                 }
+            }
+        }
+
+        /// <summary>
+        /// Extracts timezone offset from the timestamp in the data payload.
+        /// </summary>
+        private void ExtractTimezoneOffset(string curlRequest, ParsedCurlConfig result)
+        {
+            // Look for timestamp patterns like "2025-08-23T23:12:00.000+02:00"
+            var timezonePattern = @"\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}([+-]\d{2}:\d{2})";
+            var timezoneMatch = Regex.Match(curlRequest, timezonePattern);
+            
+            if (timezoneMatch.Success)
+            {
+                result.TimezoneOffset = timezoneMatch.Groups[1].Value;
             }
         }
 
