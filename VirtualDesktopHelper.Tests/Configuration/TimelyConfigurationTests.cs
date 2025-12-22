@@ -64,7 +64,7 @@ namespace VirtualDesktopHelper.Tests.Configuration
 
         [Fact]
         [Trait("Category", "TimezoneOffset")]
-        public void TimezoneOffset_ShouldReflectCurrentDST_WhenUsingSytemDefault()
+        public void TimezoneOffset_ShouldReflectCurrentDST_WhenUsingSystemDefault()
         {
             // Arrange
             var config = TimelyConfiguration.Instance;
