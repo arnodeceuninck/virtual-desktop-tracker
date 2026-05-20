@@ -292,6 +292,13 @@ namespace VirtualDesktopDisplayer
                 // Check if Ctrl is pressed for enhanced functionality
                 if (Control.ModifierKeys == Keys.Control)
                 {
+                    // If current desktop is "Daily Scrum", open the timeline view
+                    if (string.Equals(desktopLabel?.Text, "Daily Scrum", StringComparison.OrdinalIgnoreCase))
+                    {
+                        OnTimelineViewClick(sender, e);
+                        return;
+                    }
+
                     // First check if current desktop doesn't have a ticket number
                     if (!CurrentDesktopHasTicketNumber())
                     {
