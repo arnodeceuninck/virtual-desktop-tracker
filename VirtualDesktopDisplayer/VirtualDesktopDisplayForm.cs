@@ -689,7 +689,7 @@ namespace VirtualDesktopDisplayer
                     // Track the usage change
                     _usageTracker.TrackDesktopUsage(newName);
                     
-                    _applicationService.ShowInformation($"Desktop successfully renamed to \"{newName}\".");
+                    ShowToastNotification($"Desktop renamed to \"{newName}\".");
                 }
                 else
                 {
@@ -754,8 +754,7 @@ namespace VirtualDesktopDisplayer
                     // Track the new name in usage so current state is reflected immediately.
                     _usageTracker.TrackDesktopUsage(newName);
 
-                    _applicationService.ShowInformation(
-                        $"Desktop successfully renamed to \"{newName}\" and all today's entries have been updated.");
+                    ShowToastNotification($"Desktop renamed to \"{newName}\" and today's entries updated.");
                 }
                 else
                 {
@@ -1044,15 +1043,7 @@ namespace VirtualDesktopDisplayer
                 // Copy to clipboard
                 Clipboard.SetText(javascript);
 
-                // Show success message with instructions
-                _applicationService.ShowInformation(
-                    "Timely JavaScript has been copied to the clipboard!\n\n" +
-                    "Instructions:\n" +
-                    "1. Open your browser and navigate to Timely\n" +
-                    "2. Press F12 to open Developer Tools\n" +
-                    "3. Go to the Console tab\n" +
-                    "4. Paste the JavaScript and press Enter\n\n" +
-                    "Note: If you get authentication errors, you may need to update the CSRF token and cookies in the configuration.");
+                ShowToastNotification("Timely JavaScript copied to clipboard.");
             }
             catch (Exception ex)
             {
@@ -1148,8 +1139,7 @@ namespace VirtualDesktopDisplayer
 
                         if (uploadResult.Success)
                         {
-                            var successMessage = $"Successfully uploaded {uploadResult.SuccessCount} entries to Timely.";
-                            _applicationService.ShowInformation(successMessage);
+                            ShowToastNotification($"Uploaded {uploadResult.SuccessCount} entries to Timely.");
                         }
                         else
                         {
@@ -1290,8 +1280,7 @@ namespace VirtualDesktopDisplayer
 
                             if (uploadResult.Success)
                             {
-                                var successMessage = $"Successfully uploaded {uploadResult.SuccessCount} entries from today ({fromTime:HH:mm} onwards) to Timely.";
-                                _applicationService.ShowInformation(successMessage);
+                                ShowToastNotification($"Uploaded {uploadResult.SuccessCount} entries from {fromTime:HH:mm} to Timely.");
                             }
                             else
                             {
@@ -1339,7 +1328,7 @@ namespace VirtualDesktopDisplayer
             var configForm = new TimelyConfigurationFormEnhanced();
             if (configForm.ShowDialog() == DialogResult.OK)
             {
-                _applicationService.ShowInformation("Timely configuration saved successfully!");
+                ShowToastNotification("Timely configuration saved.");
             }
         }
 
@@ -1363,7 +1352,7 @@ namespace VirtualDesktopDisplayer
                 {
                     if (form.ShowDialog() == DialogResult.OK)
                     {
-                        _applicationService.ShowInformation("Project configuration saved successfully!");
+                        ShowToastNotification("Project configuration saved.");
                     }
                 }
             }
@@ -1443,11 +1432,7 @@ namespace VirtualDesktopDisplayer
                     // Track the new name in usage
                     _usageTracker.TrackDesktopUsage(newName);
 
-                    _applicationService.ShowInformation(
-                        $"Successfully renamed desktop to \"{newName}\" and updated all today's entries.\n\n" +
-                        $"Changes applied to:\n" +
-                        $"• Current desktop name\n" +
-                        $"• All usage entries from today with the old name");
+                    ShowToastNotification($"Desktop renamed to \"{newName}\" and today's entries updated.");
                 }
                 else
                 {
@@ -1623,7 +1608,7 @@ namespace VirtualDesktopDisplayer
             {
                 if (configForm.ShowDialog() == DialogResult.OK)
                 {
-                    _applicationService.ShowInformation("Issue tracking configuration saved successfully!");
+                    ShowToastNotification("Issue tracking configuration saved.");
                 }
             }
         }
@@ -1735,7 +1720,7 @@ namespace VirtualDesktopDisplayer
                     }
                     _lastDesktopName = newName;
 
-                    _applicationService.ShowInformation($"Desktop successfully renamed to \"{newName}\" and all today's entries have been updated!");
+                    ShowToastNotification($"Desktop renamed to \"{newName}\" and today's entries updated.");
                 }
                 else
                 {
@@ -1784,8 +1769,7 @@ namespace VirtualDesktopDisplayer
                     // Track the usage change
                     _usageTracker.TrackDesktopUsage(newName);
 
-                    // Show brief success notification
-                    _applicationService.ShowInformation($"Desktop renamed to \"{newName}\" with ticket from clipboard!\n\nAll today's entries have been updated.");
+                    ShowToastNotification($"Desktop renamed to \"{newName}\" with clipboard ticket.");
                 }
                 else
                 {
