@@ -329,18 +329,15 @@ namespace VirtualDesktopDisplayer
             var jumpToDesktopItem = new ToolStripMenuItem("Jump to Desktop...");
             jumpToDesktopItem.DropDownItems.Add("Loading...", null, null);
             contextMenu.Items.Add(jumpToDesktopItem);
-
-            // Add option to create new desktop
-            contextMenu.Items.Add("Create New Desktop", null, OnCreateNewDesktopClick);
             
             contextMenu.Items.Add(new ToolStripSeparator());
             
             // Group extras options under a single 'Extras' menu
             var extrasMenu = new ToolStripMenuItem("Extras");
             extrasMenu.DropDownItems.Add("Working Hours Estimation", null, OnWorkingHoursEstimationClick);
-            extrasMenu.DropDownItems.Add("Timeline View", null, OnTimelineViewClick);
             extrasMenu.DropDownItems.Add(new ToolStripSeparator());
             extrasMenu.DropDownItems.Add("Open Current Issue", null, OnOpenCurrentIssueClick);
+            extrasMenu.DropDownItems.Add("Create New Desktop", null, OnCreateNewDesktopClick);
             extrasMenu.DropDownItems.Add(new ToolStripSeparator());
             extrasMenu.DropDownItems.Add("View Log JSON", null, OnViewUsageLogClick);
             extrasMenu.DropDownItems.Add("Open Log Folder", null, OnOpenLogFolderClick);
@@ -358,6 +355,7 @@ namespace VirtualDesktopDisplayer
             contextMenu.Items.Add(configureMenu);
             
             contextMenu.Items.Add("Upload to Timely", null, OnUploadToTimelyClick);
+            contextMenu.Items.Add("Timeline View", null, OnTimelineViewClick);
             contextMenu.Items.Add(new ToolStripSeparator());
             contextMenu.Items.Add("Exit", null, (s, args) => _applicationService.ExitApplication());
 
