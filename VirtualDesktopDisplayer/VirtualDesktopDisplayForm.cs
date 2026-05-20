@@ -882,10 +882,14 @@ namespace VirtualDesktopDisplayer
         {
             if (e.KeyCode == Keys.Enter)
             {
+                e.Handled = true;
+                e.SuppressKeyPress = true;
                 ApplyDesktopRename();
             }
             else if (e.KeyCode == Keys.Escape)
             {
+                e.Handled = true;
+                e.SuppressKeyPress = true;
                 HideRenameTextBox();
             }
         }
