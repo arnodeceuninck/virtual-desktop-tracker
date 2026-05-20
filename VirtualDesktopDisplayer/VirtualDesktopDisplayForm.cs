@@ -322,9 +322,12 @@ namespace VirtualDesktopDisplayer
             contextMenu.Items.Add("Rename + Update Past Entries", null, OnRenameAndUpdatePastEntriesClick);
             
             // Add placeholder submenu items that will be populated asynchronously
+            var renameAndUpdateRecentItem = new ToolStripMenuItem("Rename + Update To Recent...");
+            renameAndUpdateRecentItem.DropDownItems.Add("Loading...", null, null);
+            contextMenu.Items.Add(renameAndUpdateRecentItem);
+            
             var recentNamesItem = new ToolStripMenuItem("Rename to Recent...");
             recentNamesItem.DropDownItems.Add("Loading...", null, null);
-            contextMenu.Items.Add(recentNamesItem);
 
             var jumpToDesktopItem = new ToolStripMenuItem("Jump to Desktop...");
             jumpToDesktopItem.DropDownItems.Add("Loading...", null, null);
@@ -338,6 +341,7 @@ namespace VirtualDesktopDisplayer
             extrasMenu.DropDownItems.Add(new ToolStripSeparator());
             extrasMenu.DropDownItems.Add("Open Current Issue", null, OnOpenCurrentIssueClick);
             extrasMenu.DropDownItems.Add("Create New Desktop", null, OnCreateNewDesktopClick);
+            extrasMenu.DropDownItems.Add(recentNamesItem);
             extrasMenu.DropDownItems.Add(new ToolStripSeparator());
             extrasMenu.DropDownItems.Add("View Log JSON", null, OnViewUsageLogClick);
             extrasMenu.DropDownItems.Add("Open Log Folder", null, OnOpenLogFolderClick);
@@ -364,16 +368,17 @@ namespace VirtualDesktopDisplayer
             contextMenu.Show(this, location);
 
             // Asynchronously load the submenu items
-            _ = Task.Run(async () => await LoadSubmenuItemsAsync(recentNamesItem, jumpToDesktopItem));
+            _ = Task.Run(async () => await LoadSubmenuItemsAsync(renameAndUpdateRecentItem, recentNamesItem, jumpToDesktopItem));
         }
 
         /// <summary>
         /// Asynchronously loads the submenu items for recent names and jump to desktop menus.
         /// This prevents blocking the UI when showing the context menu.
         /// </summary>
+        /// <param name="renameAndUpdateRecentItem">The rename and update recent names menu item to populate</param>
         /// <param name="recentNamesItem">The recent names menu item to populate</param>
         /// <param name="jumpToDesktopItem">The jump to desktop menu item to populate</param>
-        private async Task LoadSubmenuItemsAsync(ToolStripMenuItem recentNamesItem, ToolStripMenuItem jumpToDesktopItem)
+        private async Task LoadSubmenuItemsAsync(ToolStripMenuItem renameAndUpdateRecentItem, ToolStripMenuItem recentNamesItem, ToolStripMenuItem jumpToDesktopItem)
         {
             try
             {
@@ -388,11 +393,28 @@ namespace VirtualDesktopDisplayer
                 var availableDesktops = await availableDesktopsTask;
 
                 // Update UI on the main thread
-                if (recentNamesItem.IsDisposed || jumpToDesktopItem.IsDisposed)
+                if (renameAndUpdateRecentItem.IsDisposed || recentNamesItem.IsDisposed || jumpToDesktopItem.IsDisposed)
                     return;
 
                 this.Invoke((Action)(() =>
                 {
+                    // Update rename and update recent names menu
+                    renameAndUpdateRecentItem.DropDownItems.Clear();
+                    if (recentNames.Count > 0)
+                    {
+                        foreach (var name in recentNames)
+                        {
+                            var menuItem = new ToolStripMenuItem(name);
+                            menuItem.Click += (sender, e) => OnRenameAndUpdateToRecentNameClick(name);
+                            renameAndUpdateRecentItem.DropDownItems.Add(menuItem);
+                        }
+                    }
+                    else
+                    {
+                        var noItemsMenuItem = new ToolStripMenuItem("No recent names") { Enabled = false };
+                        renameAndUpdateRecentItem.DropDownItems.Add(noItemsMenuItem);
+                    }
+
                     // Update recent names menu
                     recentNamesItem.DropDownItems.Clear();
                     if (recentNames.Count > 0)
@@ -433,10 +455,13 @@ namespace VirtualDesktopDisplayer
                 System.Diagnostics.Debug.WriteLine($"Error loading submenu items asynchronously: {ex.Message}");
                 
                 // Update UI to show error on main thread
-                if (!recentNamesItem.IsDisposed && !jumpToDesktopItem.IsDisposed)
+                if (!renameAndUpdateRecentItem.IsDisposed && !recentNamesItem.IsDisposed && !jumpToDesktopItem.IsDisposed)
                 {
                     this.Invoke((Action)(() =>
                     {
+                        renameAndUpdateRecentItem.DropDownItems.Clear();
+                        renameAndUpdateRecentItem.DropDownItems.Add(new ToolStripMenuItem("Error loading") { Enabled = false });
+
                         recentNamesItem.DropDownItems.Clear();
                         recentNamesItem.DropDownItems.Add(new ToolStripMenuItem("Error loading") { Enabled = false });
                         
@@ -668,6 +693,72 @@ namespace VirtualDesktopDisplayer
             {
                 System.Diagnostics.Debug.WriteLine($"Error renaming to recent name: {ex.Message}");
                 _applicationService.ShowError($"An error occurred while renaming the desktop: {ex.Message}");
+            }
+        }
+
+        /// <summary>
+        /// Handles clicking on a recent desktop name to rename the current desktop
+        /// and update all today's entries with the old name.
+        /// </summary>
+        /// <param name="newName">The name to rename the current desktop to</param>
+        private void OnRenameAndUpdateToRecentNameClick(string newName)
+        {
+            try
+            {
+                string currentDesktopName = _desktopNameService.GetCurrentDesktopName();
+
+                if (string.IsNullOrWhiteSpace(currentDesktopName) || currentDesktopName.StartsWith("Error:") || currentDesktopName == "Unknown Desktop")
+                {
+                    _applicationService.ShowWarning("Cannot determine current desktop name. Please ensure the desktop has a valid name.");
+                    return;
+                }
+
+                if (currentDesktopName == newName)
+                {
+                    _applicationService.ShowWarning($"The current desktop is already named \"{newName}\".");
+                    return;
+                }
+
+                // Confirm the action
+                var confirmResult = MessageBox.Show(
+                    $"This will:\n\n" +
+                    $"1. Rename the current desktop from \"{currentDesktopName}\" to \"{newName}\"\n" +
+                    $"2. Update ALL entries from TODAY with the name \"{currentDesktopName}\" to use \"{newName}\"\n\n" +
+                    "This action will modify your usage history. Are you sure you want to continue?",
+                    "Confirm Desktop Rename & Update Past Entries",
+                    MessageBoxButtons.YesNo,
+                    MessageBoxIcon.Question);
+
+                if (confirmResult != DialogResult.Yes)
+                {
+                    return;
+                }
+
+                bool success = _usageTracker.UpdateDesktopNameForTodaysEntries(currentDesktopName, newName);
+
+                if (success)
+                {
+                    if (desktopLabel != null)
+                    {
+                        desktopLabel.Text = newName;
+                    }
+                    _lastDesktopName = newName;
+
+                    // Track the new name in usage so current state is reflected immediately.
+                    _usageTracker.TrackDesktopUsage(newName);
+
+                    _applicationService.ShowInformation(
+                        $"Desktop successfully renamed to \"{newName}\" and all today's entries have been updated.");
+                }
+                else
+                {
+                    _applicationService.ShowError("Failed to rename desktop and update past entries. Please try again.");
+                }
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"Error renaming and updating to recent name: {ex.Message}");
+                _applicationService.ShowError($"An error occurred while renaming and updating past entries: {ex.Message}");
             }
         }
 
